@@ -1,0 +1,107 @@
+---
+import LegalLayout from "../layouts/LegalLayout.astro";
+import { CONTACT_EMAIL } from "../lib/site.js";
+---
+
+<LegalLayout
+  title="Cookie Policy | CurlToCode"
+  description="CurlToCode sets no cookies of its own. This page lists the advertising cookies Google may set, and explains how to refuse or change your choice."
+  eyebrow="Legal"
+  heading="Cookie Policy"
+  lede="We set no cookies ourselves. The only cookies this site can place come from the advertising that funds it, and you can refuse them."
+  updated="2026-08-12"
+  crumb="Cookie Policy"
+  path="/cookies"
+>
+  <h2>Cookies we set</h2>
+  <p>
+    None. CurlToCode has no accounts, no sessions, and no server that could read
+    a cookie, so it has no reason to set one.
+  </p>
+  <p>
+    The site does store a single value in your browser's local storage under the
+    key <code>curltocode-theme</code>, holding your light, dark, or system
+    appearance choice. Local storage is not a cookie: it is never attached to a
+    network request and is only ever read by the page itself. It contains no
+    identifier and cannot be used to recognise you.
+  </p>
+
+  <h2>Cookies set by advertising</h2>
+  <p>
+    Advertising on this site is served by Google AdSense. When ads load, Google
+    and its advertising partners may set cookies on your device. Broadly they
+    fall into three groups:
+  </p>
+  <ul>
+    <li>
+      <strong>Necessary for ad delivery</strong> — used to serve ads at all, to cap
+      how often you see the same one, and to detect invalid traffic and fraud.
+    </li>
+    <li>
+      <strong>Measurement</strong> — used to count impressions and report on how ads
+      performed.
+    </li>
+    <li>
+      <strong>Personalisation</strong> — used to select ads based on your activity
+      on other sites. These are only used where the law allows, and in the EEA, the
+      UK, and Switzerland only with your consent.
+    </li>
+  </ul>
+  <p>
+    Google maintains the authoritative, current list of the specific cookies
+    involved, which changes more often than this page would:
+    <a
+      href="https://business.safety.google/adscookies/"
+      rel="noopener nofollow"
+      target="_blank">Types of cookies used by Google</a
+    >.
+  </p>
+  <p>
+    These cookies are set by Google, not by us. We cannot read them and we
+    receive none of the data they collect.
+  </p>
+
+  <h2>Your choices</h2>
+  <p>
+    If you are in the European Economic Area, the United Kingdom, or
+    Switzerland, a consent message appears before any personalisation cookie is
+    used. Refusing is a single click, exactly like accepting. If you refuse, you
+    still see ads — they are simply chosen without reference to your browsing
+    history.
+  </p>
+  <p>To change an answer you have already given, or to opt out more broadly:</p>
+  <ul>
+    <li>
+      Clear this site's cookies in your browser. The consent message will appear
+      again on your next visit.
+    </li>
+    <li>
+      Turn off ad personalisation for your whole Google account at <a
+        href="https://myadcenter.google.com"
+        rel="noopener nofollow"
+        target="_blank">My Ad Center</a
+      >.
+    </li>
+    <li>
+      Block or delete cookies in your browser settings. Every major browser can
+      block third-party cookies entirely; doing so does not stop the converter
+      from working, because the converter does not use cookies.
+    </li>
+  </ul>
+
+  <h2>Does refusing break anything?</h2>
+  <p>
+    No. Every feature of this site — conversion in both directions, all
+    twenty-two generator targets, the request inspector, and the theme switcher
+    — works identically whether you accept cookies or refuse them. The converter
+    is plain JavaScript running on your machine and does not depend on any of
+    this.
+  </p>
+
+  <h2>Contact</h2>
+  <p>
+    Questions about cookies can go to <a href={`mailto:${CONTACT_EMAIL}`}
+      >{CONTACT_EMAIL}</a
+    >. Our <a href="/privacy">Privacy Policy</a> covers data handling more broadly.
+  </p>
+</LegalLayout>

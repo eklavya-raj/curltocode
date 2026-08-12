@@ -1,0 +1,58 @@
+---
+import LegalLayout from "../layouts/LegalLayout.astro";
+import { CONTACT_EMAIL } from "../lib/site.js";
+---
+
+<LegalLayout
+  title="Contact CurlToCode | Report a Bug or Request a Client"
+  description="How to reach CurlToCode about a bug, an incorrect conversion, a client you would like supported, or a privacy question."
+  eyebrow="Contact"
+  heading="Contact"
+  lede="One address, read by the person who builds the site."
+  updated="2026-08-12"
+  crumb="Contact"
+  path="/contact"
+>
+  <h2>Email</h2>
+  <p class="contact-address">
+    <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
+  </p>
+  <p>
+    This is an independent project maintained by one person, so replies are not
+    instant. Most messages get an answer within a few days.
+  </p>
+
+  <h2>Reporting an incorrect conversion</h2>
+  <p>
+    This is the most useful kind of message we get, and the easiest to act on if
+    you include:
+  </p>
+  <ul>
+    <li>the cURL command or code you pasted in;</li>
+    <li>the language and client you selected;</li>
+    <li>what the converter produced, and what you expected instead.</li>
+  </ul>
+  <p>
+    <strong>Please replace any real credentials before you send.</strong> A token
+    is not needed to reproduce a bug — <code>Bearer redacted</code> works just as
+    well, and we would rather not receive your secrets by email, since email is far
+    less private than the converter itself.
+  </p>
+
+  <h2>Requesting a language or client</h2>
+  <p>
+    Tell us which client, and roughly what you are using it for. Targets are
+    added where the client is mature or is the ecosystem standard, and where it
+    is meaningfully different from something already supported.
+  </p>
+
+  <h2>Privacy and legal</h2>
+  <p>
+    Questions about data handling go to the same address. Before writing, our
+    <a href="/privacy">Privacy Policy</a> and <a href="/cookies"
+      >Cookie Policy</a
+    > probably answer it — particularly the point that the converter never uploads
+    what you paste. Requests concerning advertising data are usually for Google to
+    answer rather than us, and we will say so and point you to the right place.
+  </p>
+</LegalLayout>

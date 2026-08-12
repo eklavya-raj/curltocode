@@ -1,0 +1,186 @@
+---
+import LegalLayout from "../layouts/LegalLayout.astro";
+import { CONTACT_EMAIL } from "../lib/site.js";
+---
+
+<LegalLayout
+  title="Privacy Policy | CurlToCode"
+  description="How CurlToCode handles your data: the converter runs entirely in your browser and never uploads what you paste. Full detail on logs, local storage, and advertising cookies."
+  eyebrow="Legal"
+  heading="Privacy Policy"
+  lede="CurlToCode is built so that the requests you paste never leave your device. This page explains exactly what that means, and what is collected by the parts of the site that are not the converter."
+  updated="2026-08-12"
+  crumb="Privacy Policy"
+  path="/privacy"
+>
+  <h2>The short version</h2>
+  <ul>
+    <li>
+      The converter runs entirely in your browser. Nothing you paste is
+      uploaded, stored, or logged by us — including API keys and tokens.
+    </li>
+    <li>
+      There are no accounts, no sign-up, and no forms that collect your data.
+    </li>
+    <li>We run no analytics and no tracking of our own.</li>
+    <li>
+      The site displays advertising supplied by Google, which does set cookies
+      and collect data. That is the one part of this site that is not private,
+      and it is described in full below.
+    </li>
+  </ul>
+
+  <h2>What the converter does with your input</h2>
+  <p>
+    When you paste a cURL command or a block of code, every step — tokenizing,
+    parsing, and generating the output — happens inside your browser using
+    JavaScript that was downloaded with the page. The text you type is held in
+    the memory of the page you are looking at and nowhere else.
+  </p>
+  <p>Concretely, the converter does not:</p>
+  <ul>
+    <li>send your input to us or to any other server;</li>
+    <li>execute the request you paste, or contact the URL in it;</li>
+    <li>run the code you paste, or the code it generates;</li>
+    <li>
+      save your input to your browser's storage, so closing the tab discards it.
+    </li>
+  </ul>
+  <p>
+    This is why it is safe to paste a command containing a real credential. That
+    said, the generated output is displayed on your screen: normal care applies
+    if you are screen-sharing or working in public.
+  </p>
+
+  <h2>Information collected automatically</h2>
+  <p>
+    The site is a set of static files hosted on Cloudflare's network. Like
+    effectively every web host, Cloudflare records technical information when
+    your browser requests a page: your IP address, the time of the request, the
+    page requested, your browser's user-agent string, and similar network-level
+    detail. This is used to serve the site, absorb attacks, and keep it
+    reliable. We do not use these records to build a profile of you, and we do
+    not combine them with anything else.
+  </p>
+  <p>
+    We do not operate a database, and there is no back end that could receive
+    the contents of the converter.
+  </p>
+
+  <h2>Storage in your browser</h2>
+  <p>
+    The site writes exactly one value to your browser's local storage, under the
+    key <code>curltocode-theme</code>. It records whether you chose the light,
+    dark, or system appearance, so the site does not flash the wrong colours on
+    your next visit. It contains no identifier, it is never sent anywhere, and
+    clearing your browser's site data removes it.
+  </p>
+
+  <h2>Advertising and cookies</h2>
+  <p>
+    This site is free and is funded by advertising served through Google
+    AdSense. Google and its partners use cookies and similar device identifiers
+    to serve and measure ads, to limit how often you see the same ad, and —
+    where you have consented — to personalise what you are shown based on your
+    activity across other sites.
+  </p>
+  <p>
+    These cookies are set by Google, not by us. We do not receive them, and we
+    have no access to the data they collect. Google's own documentation
+    describes this processing:
+  </p>
+  <ul>
+    <li>
+      <a
+        href="https://policies.google.com/technologies/partner-sites"
+        rel="noopener nofollow"
+        target="_blank"
+        >How Google uses information from sites that use its services</a
+      >
+    </li>
+    <li>
+      <a
+        href="https://policies.google.com/privacy"
+        rel="noopener nofollow"
+        target="_blank">Google Privacy Policy</a
+      >
+    </li>
+  </ul>
+  <p>
+    Importantly, the advertising system has no access to what you type into the
+    converter. It reads the page you are on, not the contents of a textarea.
+  </p>
+  <p>
+    If you are in the European Economic Area, the United Kingdom, or
+    Switzerland, you are shown a consent message before personalised advertising
+    cookies are used, and you can refuse them as easily as you can accept them.
+    Refusing means you are shown non-personalised ads instead of no ads. You can
+    change your answer at any time by clearing this site's cookies, which makes
+    the consent message appear again.
+  </p>
+  <p>
+    You can also turn off personalised advertising for your Google account
+    entirely at <a
+      href="https://myadcenter.google.com"
+      rel="noopener nofollow"
+      target="_blank">My Ad Center</a
+    >, independently of anything you choose here. Our <a href="/cookies"
+      >Cookie Policy</a
+    > sets out the individual cookies involved.
+  </p>
+
+  <h2>Third parties we rely on</h2>
+  <p>The complete list of outside services involved in serving this site:</p>
+  <ul>
+    <li>
+      <strong>Cloudflare</strong> — hosting and content delivery. Processes the network-level
+      request data described above.
+    </li>
+    <li>
+      <strong>Google AdSense</strong> — advertising, as described above.
+    </li>
+  </ul>
+  <p>
+    There is nothing else. In particular, the site loads no web-font service, no
+    analytics provider, no tag manager, no social widgets, and no third-party
+    comment or chat system. Fonts and icons are served from this domain, so
+    visiting a page does not announce you to anyone else.
+  </p>
+
+  <h2>Your rights</h2>
+  <p>
+    Depending on where you live, data-protection law — the GDPR and UK GDPR in
+    Europe, the Digital Personal Data Protection Act, 2023 in India, and
+    comparable laws elsewhere — gives you rights to access, correct, delete, or
+    restrict the use of personal data about you, and to object to some
+    processing.
+  </p>
+  <p>
+    We hold no user database, so in most cases there is nothing for us to
+    retrieve or delete. Where a request concerns advertising data, it is
+    properly directed to Google, who acts as the controller for that processing.
+    If you are unsure, write to us at the address below and we will point you to
+    the right place.
+  </p>
+
+  <h2>Children</h2>
+  <p>
+    This is a developer tool and is not directed at children. We do not
+    knowingly collect personal data from anyone, including children.
+  </p>
+
+  <h2>Changes to this policy</h2>
+  <p>
+    If this policy changes in a way that affects you — a new third-party
+    service, for example — the date at the top of this page changes with it.
+    There is no mailing list to notify, so the dateline is the honest signal.
+  </p>
+
+  <h2>Contact</h2>
+  <p>
+    Questions about this policy, or about privacy on this site, can be sent to
+    <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>. See the <a
+      href="/contact">contact page</a
+    > for more.
+  </p>
+</LegalLayout>

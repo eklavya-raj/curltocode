@@ -5,6 +5,11 @@ const productionBaseUrl = "http://127.0.0.1:4324";
 const indexablePages = [
   ["/", "cURL ↔ Code Converter"],
   ["/converters", "All cURL converters"],
+  ["/about", "About CurlToCode"],
+  ["/contact", "Contact"],
+  ["/cookies", "Cookie Policy"],
+  ["/privacy", "Privacy Policy"],
+  ["/terms", "Terms of Service"],
   ["/curl-to-csharp", "Convert cURL to C#"],
   ["/curl-to-csharp/restsharp", "Convert cURL to C# RestSharp"],
   ["/curl-to-go", "Convert cURL to Go"],

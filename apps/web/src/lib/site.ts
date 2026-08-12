@@ -6,6 +6,9 @@ export const SITE_NAME = "CurlToCode";
 export const SITE_LOCALE = "en_US";
 export const SITE_LANGUAGE = "en";
 
+/** Published contact address. Legal pages and the contact page share it. */
+export const CONTACT_EMAIL = "hello@curltocode.com";
+
 export const SITE_DESCRIPTION =
   "Convert cURL commands to code and code back to cURL. Every conversion runs locally in your browser.";
 

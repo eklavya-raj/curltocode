@@ -744,6 +744,67 @@ h1 {
   font-size: 0.9rem;
 }
 
+/* Legal and informational pages are long-form reading rather than reference
+   material, so body copy uses full ink instead of the muted tone the converter
+   pages use for short supporting text. */
+.legal-dateline {
+  margin: 18px 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.legal {
+  max-width: 720px;
+}
+/* A hero-scale h1 is disproportionate for a policy page. */
+.legal-hero h1 {
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  letter-spacing: -0.04em;
+}
+.legal h2 {
+  margin: 42px 0 12px;
+  font-size: 1.3rem;
+  letter-spacing: -0.02em;
+}
+.legal h2:first-child {
+  margin-top: 0;
+}
+.legal p,
+.legal li {
+  max-width: none;
+  color: var(--ink);
+  line-height: 1.75;
+}
+.legal p {
+  margin: 0 0 14px;
+}
+/* Tailwind's preflight strips list markers, which long-form policy text needs
+   back to stay scannable. */
+.legal ul {
+  margin: 0 0 18px;
+  padding-left: 22px;
+  list-style: disc;
+}
+.legal li {
+  margin-bottom: 8px;
+}
+.legal li::marker {
+  color: var(--accent);
+}
+.legal a {
+  color: var(--accent);
+  text-underline-offset: 3px;
+}
+.legal code {
+  border-radius: 5px;
+  background: var(--surface-muted);
+  padding: 1px 5px;
+  font-size: 0.9em;
+}
+.contact-address {
+  font-size: 1.15rem;
+  font-weight: 650;
+}
+
 .faq {
   margin-top: 48px;
 }

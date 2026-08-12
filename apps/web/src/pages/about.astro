@@ -1,0 +1,83 @@
+---
+import LegalLayout from "../layouts/LegalLayout.astro";
+import { CONTACT_EMAIL } from "../lib/site.js";
+---
+
+<LegalLayout
+  title="About CurlToCode | Who Builds It and How It Works"
+  description="CurlToCode is an independently built cURL converter that runs entirely in your browser. How it works, why it refuses some conversions, and who maintains it."
+  eyebrow="About"
+  heading="About CurlToCode"
+  lede="An independently built tool for turning cURL commands into working code, and code back into cURL, without sending anything to a server."
+  updated="2026-08-12"
+  crumb="About"
+  path="/about"
+>
+  <h2>What this is</h2>
+  <p>
+    CurlToCode converts a cURL command into idiomatic source code for the HTTP
+    client of your choice — currently nine languages and twenty-two generator
+    targets — and converts statically analysable JavaScript and TypeScript
+    requests back into cURL. It is free, needs no account, and works offline
+    once the page has loaded.
+  </p>
+
+  <h2>Who builds it</h2>
+  <p>
+    CurlToCode is an independent project built and maintained by a single
+    developer. It is not a company, and it is not affiliated with the cURL
+    project, with Google, or with any of the language and library vendors whose
+    tools it generates code for.
+  </p>
+
+  <h2>How it works</h2>
+  <p>
+    Your command is tokenized with a shell-aware tokenizer, parsed into a
+    normalized HTTP request — method, URL, query, headers, cookies,
+    authentication, and body — and then handed to a generator for the client you
+    picked. Every generator reads that same model, which is why the request that
+    reaches your server is the same one cURL would have sent, whichever language
+    you choose.
+  </p>
+  <p>
+    Conversion in the other direction reads your code as an abstract syntax tree
+    rather than running it. A value that only exists at runtime is reported as
+    an unresolved expression instead of being guessed at.
+  </p>
+
+  <h2>Why it sometimes refuses</h2>
+  <p>
+    Some clients genuinely cannot express some requests: duplicate header names
+    in a Python dictionary, a multipart body in the JDK HTTP client, a local
+    file path in browser JavaScript. When that happens the converter tells you
+    so, rather than emitting code that quietly sends something different from
+    what you asked for. A refusal is a feature — it is the difference between a
+    tool you can trust with production traffic and one you cannot.
+  </p>
+
+  <h2>Why everything runs in your browser</h2>
+  <p>
+    cURL commands are full of secrets. Bearer tokens, API keys, basic auth
+    passwords, and session cookies are exactly the things people paste into a
+    converter, and exactly the things that should not be uploaded to a
+    stranger's server. Running conversion locally removes the question entirely:
+    there is no server to trust, because there is no server involved. Our <a
+      href="/privacy">Privacy Policy</a
+    > covers this in detail.
+  </p>
+
+  <h2>How it is funded</h2>
+  <p>
+    The site is free and carries advertising. Advertising pays for the domain
+    and the time that goes into maintaining the generators. It has no access to
+    what you paste into the converter — it reads the page, not the contents of a
+    text box.
+  </p>
+
+  <h2>Get in touch</h2>
+  <p>
+    Bug reports, a client you would like supported, or a conversion that came
+    out wrong: <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>. See the
+    <a href="/contact">contact page</a> for what is most useful to include.
+  </p>
+</LegalLayout>

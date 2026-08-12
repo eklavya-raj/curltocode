@@ -1,0 +1,53 @@
+---
+import BaseLayout from "./BaseLayout.astro";
+
+interface Props {
+  title: string;
+  description: string;
+  eyebrow: string;
+  heading: string;
+  lede: string;
+  /** ISO date the wording last changed. Rendered and used for the dateline. */
+  updated: string;
+  /** Breadcrumb label and path for this page. */
+  crumb: string;
+  path: string;
+}
+
+const { title, description, eyebrow, heading, lede, updated, crumb, path } =
+  Astro.props;
+
+const updatedLabel = new Date(`${updated}T00:00:00Z`).toLocaleDateString(
+  "en-GB",
+  { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" },
+);
+---
+
+<BaseLayout
+  title={title}
+  description={description}
+  breadcrumbs={[{ name: crumb, path }]}
+>
+  <div class="shell">
+    <nav class="breadcrumbs" aria-label="Breadcrumb">
+      <ol>
+        <li><a href="/">Home</a></li>
+        <li><span aria-current="page">{crumb}</span></li>
+      </ol>
+    </nav>
+    <header class="hero legal-hero">
+      <span class="eyebrow">{eyebrow}</span>
+      <h1>{heading}</h1>
+      <p class="lede">{lede}</p>
+      <p class="legal-dateline">
+        Last updated <time datetime={updated}>{updatedLabel}</time>
+      </p>
+    </header>
+  </div>
+
+  <section class="content-section">
+    <div class="shell">
+      <div class="legal"><slot /></div>
+    </div>
+  </section>
+</BaseLayout>

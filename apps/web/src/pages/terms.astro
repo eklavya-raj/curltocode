@@ -1,0 +1,138 @@
+---
+import LegalLayout from "../layouts/LegalLayout.astro";
+import { CONTACT_EMAIL } from "../lib/site.js";
+---
+
+<LegalLayout
+  title="Terms of Service | CurlToCode"
+  description="The terms covering use of CurlToCode: what the free converter does, what it does not guarantee about generated code, and the limits of liability."
+  eyebrow="Legal"
+  heading="Terms of Service"
+  lede="Plain terms for a free tool. The short version: use it for anything lawful, check the code it gives you before you ship it, and understand that it comes with no warranty."
+  updated="2026-08-12"
+  crumb="Terms of Service"
+  path="/terms"
+>
+  <h2>1. Agreement</h2>
+  <p>
+    By using CurlToCode you agree to these terms. If you do not agree with them,
+    please do not use the site. CurlToCode is operated as an independent project
+    by an individual developer, referred to below as "we".
+  </p>
+
+  <h2>2. What the service is</h2>
+  <p>
+    CurlToCode converts cURL commands into source code for a range of HTTP
+    clients, and converts statically analysable JavaScript and TypeScript
+    requests back into cURL. It is provided free of charge, with no account and
+    no registration. Conversion runs in your browser; we do not receive what you
+    paste.
+  </p>
+
+  <h2>3. Acceptable use</h2>
+  <p>You agree not to:</p>
+  <ul>
+    <li>
+      use the site to build or support activity that is unlawful, or that
+      targets systems you are not authorised to access;
+    </li>
+    <li>
+      attempt to disrupt the site, or to place automated load on it that
+      interferes with other people's use;
+    </li>
+    <li>
+      misrepresent the site as your own, or as endorsed by or affiliated with us
+      where it is not.
+    </li>
+  </ul>
+  <p>
+    Converting a request is a neutral act. Responsibility for the requests you
+    build and send with the resulting code is entirely yours.
+  </p>
+
+  <h2>4. Generated code</h2>
+  <p>
+    The converter is designed to be exact: where a client genuinely cannot
+    express something in your request, it reports that limitation instead of
+    emitting code that quietly sends something different. We test it thoroughly.
+    Even so, it is software, and it is provided without any guarantee that its
+    output is correct, complete, secure, or fit for your purpose.
+  </p>
+  <p>
+    <strong>Review generated code before you run it</strong>, particularly where
+    it handles credentials, touches production systems, or moves money. You are
+    responsible for what you deploy.
+  </p>
+  <p>
+    You own the code the converter produces from your input. We claim no rights
+    over it and place no restriction on its use, commercial or otherwise.
+  </p>
+
+  <h2>5. Availability</h2>
+  <p>
+    The site is provided as-is and as-available. We may change, suspend, or
+    discontinue any part of it at any time, including individual conversion
+    targets, without notice and without liability. No uptime is promised.
+  </p>
+
+  <h2>6. Intellectual property</h2>
+  <p>
+    The site's own content — its written explanations, layout, design, name, and
+    branding — belongs to us. The underlying conversion library is published
+    separately under its own open-source licence, and that licence, not this
+    page, governs your use of it. Names of programming languages, HTTP clients,
+    and their logos belong to their respective owners and are used here only to
+    identify them.
+  </p>
+
+  <h2>7. Advertising and third-party links</h2>
+  <p>
+    The site is funded by advertising served by Google. We do not select
+    individual advertisements and do not endorse them. Pages may also link to
+    third-party documentation and websites, which we do not control and are not
+    responsible for.
+  </p>
+
+  <h2>8. Disclaimer of warranties</h2>
+  <p>
+    To the fullest extent permitted by law, the site and everything it produces
+    are provided without warranties of any kind, whether express or implied,
+    including any implied warranty of merchantability, fitness for a particular
+    purpose, accuracy, or non-infringement.
+  </p>
+
+  <h2>9. Limitation of liability</h2>
+  <p>
+    To the fullest extent permitted by law, we are not liable for any indirect,
+    incidental, special, consequential, or exemplary damages, nor for any loss
+    of data, revenue, or profits, arising out of your use of the site or of code
+    it generated — whether or not we were advised such loss was possible.
+  </p>
+  <p>
+    Nothing in these terms limits liability that cannot lawfully be limited,
+    including liability for fraud, or for death or personal injury caused by
+    negligence.
+  </p>
+
+  <h2>10. Changes to these terms</h2>
+  <p>
+    These terms may change. The date at the top of this page records when they
+    last did. Continuing to use the site after a change means you accept the
+    revised terms.
+  </p>
+
+  <h2>11. Governing law</h2>
+  <p>
+    These terms are governed by the laws of India, and the courts of India have
+    jurisdiction over any dispute arising from them. If you are a consumer
+    elsewhere, this does not remove any protection you have under the mandatory
+    law of the country you live in.
+  </p>
+
+  <h2>12. Contact</h2>
+  <p>
+    Questions about these terms can be sent to <a
+      href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a
+    >.
+  </p>
+</LegalLayout>
