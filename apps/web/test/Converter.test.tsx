@@ -62,28 +62,34 @@ describe("Converter", () => {
   it.each([
     ["javascript", "fetch", "await fetch"],
     ["javascript", "axios", 'import axios from "axios"'],
+    ["javascript", "undici", 'from "undici"'],
     ["typescript", "fetch", "satisfies RequestInit"],
     ["typescript", "axios", "satisfies AxiosRequestConfig"],
+    ["typescript", "undici", 'from "undici"'],
     ["python", "requests", "requests.post"],
     ["python", "httpx", "httpx.post"],
+    ["python", "aiohttp", "aiohttp.ClientSession"],
     ["go", "nethttp", "package main"],
+    ["go", "resty", "resty.New()"],
     ["php", "curl", "curl_setopt_array"],
+    ["php", "guzzle", "GuzzleHttp\\Client"],
     ["java", "httpclient", "HttpClient.newBuilder"],
     ["java", "okhttp", "OkHttpClient"],
+    ["java", "apache", "HttpClients.custom"],
     ["csharp", "httpclient", "HttpRequestMessage"],
+    ["csharp", "restsharp", "new RestClient"],
     ["ruby", "nethttp", "Net::HTTP::Post"],
+    ["ruby", "faraday", "Faraday.new"],
     ["rust", "reqwest", "reqwest::Client"],
+    ["rust", "ureq", "Agent::config_builder"],
   ] as const)(
     "generates %s/%s through the interactive selectors",
     async (language, client, expected) => {
       const user = userEvent.setup();
       render(<Converter />);
       await user.selectOptions(screen.getByLabelText("Language"), language);
-      if (["axios", "httpx", "okhttp"].includes(client)) {
-        await user.selectOptions(screen.getByLabelText("Client"), client);
-      } else {
-        expect(screen.getByLabelText("Client")).toHaveValue(client);
-      }
+      await user.selectOptions(screen.getByLabelText("Client"), client);
+      expect(screen.getByLabelText("Client")).toHaveValue(client);
       await waitFor(() =>
         expect(valueOf("Converted output")).toContain(expected),
       );

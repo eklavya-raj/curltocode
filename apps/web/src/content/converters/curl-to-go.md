@@ -1,10 +1,10 @@
 ---
 slug: curl-to-go
-title: cURL to Go Converter – net/http | CurlToCode
-description: Convert cURL commands to Go net/http code in your browser. Headers, JSON bodies, forms, multipart uploads, cookies, and basic auth are preserved exactly.
+title: cURL to Go Converter – net/http & Resty v3 | CurlToCode
+description: Convert cURL to Go net/http or Resty v3 code locally. Preserve JSON, forms, multipart files, duplicate headers, cookies, auth, and redirects.
 heading: Convert cURL to Go
-eyebrow: Go standard library
-lede: Generate net/http request code that keeps your method, query parameters, headers, cookies, authentication, and request body intact.
+eyebrow: Go HTTP clients
+lede: Generate standard-library net/http or concise Resty v3 code while keeping methods, queries, headers, cookies, authentication, and bodies intact.
 language: go
 client: nethttp
 languageLabel: Go
@@ -16,8 +16,9 @@ faqs:
   - question: How are duplicate header names handled in Go?
     answer: They are preserved. The generated code calls req.Header.Add rather than req.Header.Set, so repeating a header name appends another value instead of replacing the previous one. This matches what cURL sends on the wire.
   - question: Do I need any third-party Go modules?
-    answer: No. Every generated request uses only the standard library — net/http for the request, strings or bytes for the body, mime/multipart for uploads, and io for reading the response. There is nothing to add to go.mod.
+    answer: net/http output uses only the standard library. Resty output imports resty.dev/v3 and includes the matching go get command, trading one dependency for a more concise request API and middleware support.
 related:
+  - curl-to-go/resty
   - curl-to-rust
   - curl-to-java
   - curl-to-python
@@ -34,6 +35,11 @@ Bodies are wrapped in a reader rather than passed as a string, because
 `http.NewRequest` takes an `io.Reader`. A JSON or form body becomes
 `strings.NewReader`, and a file body becomes an `os.Open` handle that the
 request streams rather than loading into memory.
+
+Choose Resty when the application already uses its request middleware, retries,
+or response helpers. That generator still passes raw strings rather than asking
+Resty to marshal JSON, and reaches the underlying header map to retain duplicate
+values.
 
 ## Multipart uploads
 

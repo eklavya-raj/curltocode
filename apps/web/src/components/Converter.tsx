@@ -60,13 +60,21 @@ const languageLabels: Record<Language, string> = {
 const clientLabels: Record<Client, string> = {
   fetch: "Fetch",
   axios: "Axios",
+  undici: "Undici",
   requests: "Requests",
   httpx: "HTTPX",
+  aiohttp: "aiohttp",
   nethttp: "net/http",
+  resty: "Resty",
   curl: "cURL extension",
+  guzzle: "Guzzle",
   httpclient: "HttpClient",
   okhttp: "OkHttp",
+  apache: "Apache HttpClient",
+  restsharp: "RestSharp",
+  faraday: "Faraday",
   reqwest: "reqwest",
+  ureq: "ureq",
 };
 
 const LANGUAGES = Array.from(

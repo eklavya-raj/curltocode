@@ -1,10 +1,10 @@
 ---
 slug: curl-to-ruby
-title: cURL to Ruby Converter – Net::HTTP | CurlToCode
-description: Convert cURL commands to Ruby Net::HTTP code in your browser. Headers, JSON bodies, forms, multipart uploads, cookies, and basic auth are preserved.
+title: cURL to Ruby Converter – Net::HTTP & Faraday | CurlToCode
+description: Convert cURL to Ruby Net::HTTP or Faraday code locally, preserving raw bodies, forms, uploads, authentication, cookies, and redirect intent.
 heading: Convert cURL to Ruby
-eyebrow: Ruby standard library
-lede: Generate Net::HTTP request code with no gems required, keeping your method, headers, cookies, authentication, and request body intact.
+eyebrow: Ruby HTTP clients
+lede: Generate dependency-free Net::HTTP or middleware-friendly Faraday code while keeping methods, headers, cookies, authentication, and bodies intact.
 language: ruby
 client: nethttp
 languageLabel: Ruby
@@ -15,9 +15,10 @@ faqs:
     answer: No, and this is the one behaviour the converter cannot reproduce with configuration alone. Net::HTTP never follows redirects automatically. When the original command used -L, the generated code carries a comment explaining that you must check for Net::HTTPRedirection and reissue the request yourself.
   - question: Why does the code use add_field instead of the bracket setter?
     answer: The bracket setter replaces any existing value for that header name, which would silently drop a repeated header. add_field appends, so a command with two headers of the same name produces two headers on the wire, matching cURL.
-  - question: Do I need the httparty or faraday gem?
-    answer: No. Net::HTTP and URI are both part of the Ruby standard library, so the generated code runs on a stock installation with no Gemfile and no bundle install step.
+  - question: Should I use Net HTTP or Faraday?
+    answer: Net HTTP and URI ship with Ruby and are enough for small scripts. Faraday adds a gem but provides reusable adapters and middleware for redirects, authentication, retries, parsing, instrumentation, and testing.
 related:
+  - curl-to-ruby/faraday
   - curl-to-python
   - curl-to-php
   - curl-to-go
@@ -32,6 +33,10 @@ closed even if the request raises.
 
 TLS is enabled by comparing the parsed scheme rather than hardcoding a port, so
 the same shape works for both `http` and `https` URLs.
+
+Faraday output instead creates a connection and uses `run_request`. Multipart
+and redirect support are installed as focused middleware gems only when the
+original request needs them.
 
 ## Methods, bodies, and uploads
 

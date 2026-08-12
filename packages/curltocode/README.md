@@ -1,11 +1,12 @@
 # curltocode
 
 The future public package for [CurlToCode](https://curltocode.com). It converts
-cURL commands to JavaScript or TypeScript Fetch and Axios, Python Requests and
-HTTPX, Go net/http, PHP cURL, Java HttpClient and OkHttp, C# HttpClient, Ruby
-Net::HTTP, and Rust reqwest. It also statically parses JavaScript and TypeScript
-Fetch/Axios source back to POSIX-shell cURL without executing code or performing
-represented network requests.
+cURL commands to 22 targets across JavaScript, TypeScript, Python, Go, PHP,
+Java, C#, Ruby, and Rust. These include Fetch, Axios, Undici, Requests, HTTPX,
+aiohttp, Resty, Guzzle, Apache HttpClient, RestSharp, Faraday, ureq, and each
+language's existing standard or established client. It also statically parses
+JavaScript and TypeScript Fetch/Axios source back to POSIX-shell cURL without
+executing code or performing represented network requests.
 
 ```ts
 import { codeToCurl, convert, parseCurl, supportedTargets } from "curltocode";

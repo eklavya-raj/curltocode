@@ -6,19 +6,27 @@ const indexablePages = [
   ["/", "cURL ↔ Code Converter"],
   ["/converters", "All cURL converters"],
   ["/curl-to-csharp", "Convert cURL to C#"],
+  ["/curl-to-csharp/restsharp", "Convert cURL to C# RestSharp"],
   ["/curl-to-go", "Convert cURL to Go"],
+  ["/curl-to-go/resty", "Convert cURL to Go Resty"],
   ["/curl-to-java", "Convert cURL to Java"],
+  ["/curl-to-java/apache-httpclient", "Convert cURL to Apache HttpClient 5"],
   ["/curl-to-java/httpclient", "Convert cURL to Java HttpClient"],
   ["/curl-to-java/okhttp", "Convert cURL to Java OkHttp"],
   ["/curl-to-javascript", "Convert cURL to JavaScript"],
   ["/curl-to-javascript/axios", "Convert cURL to Axios"],
   ["/curl-to-javascript/fetch", "Convert cURL to Fetch"],
+  ["/curl-to-javascript/undici", "Convert cURL to JavaScript Undici"],
   ["/curl-to-php", "Convert cURL to PHP"],
+  ["/curl-to-php/guzzle", "Convert cURL to PHP Guzzle"],
   ["/curl-to-python", "Convert cURL to Python"],
+  ["/curl-to-python/aiohttp", "Convert cURL to Python aiohttp"],
   ["/curl-to-python/httpx", "Convert cURL to Python HTTPX"],
   ["/curl-to-python/requests", "Convert cURL to Python Requests"],
   ["/curl-to-ruby", "Convert cURL to Ruby"],
+  ["/curl-to-ruby/faraday", "Convert cURL to Ruby Faraday"],
   ["/curl-to-rust", "Convert cURL to Rust"],
+  ["/curl-to-rust/ureq", "Convert cURL to Rust ureq"],
   ["/curl-to-typescript", "Convert cURL to TypeScript"],
 ] as const;
 
@@ -183,7 +191,7 @@ test("language pages render unique SEO metadata and a working converter", async 
   await page
     .locator('[aria-label="cURL and code converter"][data-ready="true"]')
     .waitFor();
-  await expect(page).toHaveTitle(/cURL to Python Converter/u);
+  await expect(page).toHaveTitle(/cURL to Python/u);
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
     "href",
     "https://curltocode.com/curl-to-python",
@@ -204,7 +212,7 @@ test("new language and client pages initialize their real generators", async ({
     .waitFor();
   await expect(page.getByLabel("Language")).toHaveValue("go");
   await expect(page.getByLabel("Client")).toHaveValue("nethttp");
-  await expect(page.getByLabel("Client")).toBeDisabled();
+  await expect(page.getByLabel("Client")).toBeEnabled();
   await expect(page.getByLabel("Converted output")).toHaveValue(
     /package main/u,
   );
@@ -219,6 +227,17 @@ test("new language and client pages initialize their real generators", async ({
     /OkHttpClient/u,
   );
   await expect(page.getByText(/okhttp:5\.3\.2/u)).toBeVisible();
+
+  await page.goto("/curl-to-python/aiohttp");
+  await page
+    .locator('[aria-label="cURL and code converter"][data-ready="true"]')
+    .waitFor();
+  await expect(page.getByLabel("Language")).toHaveValue("python");
+  await expect(page.getByLabel("Client")).toHaveValue("aiohttp");
+  await expect(page.getByLabel("Converted output")).toHaveValue(
+    /aiohttp\.ClientSession/u,
+  );
+  await expect(page.getByText("pip install aiohttp")).toBeVisible();
 });
 
 test("every indexable page renders canonical metadata and structured data", async ({

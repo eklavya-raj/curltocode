@@ -1,10 +1,10 @@
 ---
 slug: curl-to-csharp
-title: cURL to C# Converter – HttpClient | CurlToCode
-description: Convert cURL commands to C# HttpClient code. Headers, JSON bodies, forms, multipart uploads, cookies, and basic auth map onto HttpRequestMessage correctly.
+title: cURL to C# Converter – HttpClient & RestSharp | CurlToCode
+description: Convert cURL to C# HttpClient or current RestSharp code, preserving JSON, forms, uploads, headers, cookies, authentication, and redirect behavior.
 heading: Convert cURL to C#
-eyebrow: .NET HttpClient
-lede: Generate HttpClient code that puts each header on the right object, so your request compiles and runs instead of throwing at the first content header.
+eyebrow: .NET HTTP clients
+lede: Generate low-level HttpClient or current RestSharp code with content headers, bodies, files, and redirect settings placed on the correct API surface.
 language: csharp
 client: httpclient
 languageLabel: C#
@@ -18,6 +18,7 @@ faqs:
   - question: Does this code work in a console app as written?
     answer: Yes. It uses top-level statements and await, which .NET 6 and later support in Program.cs without a wrapping class or an explicit async Main.
 related:
+  - curl-to-csharp/restsharp
   - curl-to-java
   - curl-to-go
   - curl-to-typescript
@@ -33,6 +34,10 @@ so it is released at the end of scope.
 A handler is only introduced when it is needed — to disable automatic redirects,
 to turn off the cookie container, or both. Requests that need neither construct
 `HttpClient` directly.
+
+RestSharp output uses its current `RestClientOptions` and `RestRequest` APIs. It
+passes `Content-Type` through the body method, avoiding obsolete generator
+patterns that try to add it as an ordinary request header.
 
 ## The header split that breaks most hand-written code
 

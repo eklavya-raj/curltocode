@@ -1,10 +1,10 @@
 ---
 slug: curl-to-php
-title: cURL to PHP Converter – ext-curl | CurlToCode
-description: Convert cURL commands to PHP code using the native cURL extension. Headers, JSON, forms, file uploads, cookies, and basic auth map directly onto curl_setopt.
+title: cURL to PHP Converter – ext-curl & Guzzle | CurlToCode
+description: Convert cURL to PHP using ext-curl or Guzzle. Preserve raw JSON, forms, file uploads, repeated headers, cookies, authentication, and redirects.
 heading: Convert cURL to PHP
-eyebrow: PHP cURL extension
-lede: Generate curl_setopt_array code that mirrors your original command almost option for option, because PHP wraps the same libcurl underneath.
+eyebrow: PHP HTTP clients
+lede: Generate low-level ext-curl or application-friendly Guzzle code while preserving the request represented by your original command.
 language: php
 client: curl
 languageLabel: PHP
@@ -15,9 +15,10 @@ faqs:
     answer: PHP's cURL extension is a thin binding over libcurl, the same library the cURL command-line tool uses. Most command-line flags have a direct CURLOPT_ equivalent, so the conversion is closer to a translation than a rewrite.
   - question: Does the generated PHP preserve duplicate header names?
     answer: Yes. CURLOPT_HTTPHEADER takes a list of raw header lines rather than an associative array, so repeating a name simply adds another line. Nothing is merged or overwritten.
-  - question: Do I need Composer or Guzzle to run this code?
-    answer: No. The output uses only the bundled cURL extension, which ships enabled in most PHP distributions. You can verify it with php -m and looking for curl in the module list.
+  - question: Should I use ext-curl or Guzzle?
+    answer: ext-curl is the direct dependency-free binding to libcurl and suits small scripts. Guzzle needs Composer but provides reusable clients, middleware, PSR-7 integration, and testing tools that fit larger applications.
 related:
+  - curl-to-php/guzzle
   - curl-to-python
   - curl-to-ruby
   - curl-to-go
@@ -32,6 +33,10 @@ response body as a string instead of writing it straight to output.
 
 The method is set with `CURLOPT_CUSTOMREQUEST` rather than `CURLOPT_POST`,
 because it expresses any verb uniformly, including `PATCH` and `DELETE`.
+
+Guzzle output uses `Client::request` and a structured options array instead.
+Repeated headers become arrays of values, while raw bodies stay on the `body`
+option to avoid automatic serialization.
 
 ## Bodies and uploads
 

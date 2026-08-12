@@ -22,10 +22,19 @@ const EXTENSIONS: Readonly<Record<string, string>> = {
   "python-httpx": "py",
   "javascript-fetch": "mjs",
   "javascript-axios": "mjs",
+  "javascript-undici": "mjs",
+  "typescript-undici": "mjs",
   "go-nethttp": "go",
+  "go-resty": "go",
   "php-curl": "php",
+  "php-guzzle": "php",
+  "java-apache": "java",
   "rust-reqwest": "rs",
+  "rust-ureq": "rs",
   "csharp-httpclient": "cs",
+  "csharp-restsharp": "cs",
+  "python-aiohttp": "py",
+  "ruby-faraday": "rb",
 };
 
 it("writes generated files for external syntax checks", () => {

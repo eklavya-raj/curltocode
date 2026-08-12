@@ -1,18 +1,18 @@
 ---
 slug: curl-to-python
-title: cURL to Python Converter – Requests & HTTPX | CurlToCode
-description: Convert cURL commands to idiomatic Python Requests or HTTPX code locally in your browser, including JSON, forms, headers, authentication, and cookies.
+title: cURL to Python – Requests, HTTPX & aiohttp | CurlToCode
+description: Convert cURL to Python Requests, HTTPX, or async aiohttp code locally, including exact bodies, forms, headers, authentication, cookies, and uploads.
 heading: Convert cURL to Python
 eyebrow: Python HTTP clients
-lede: Generate readable Requests or HTTPX code while preserving methods, query parameters, headers, authentication, cookies, and request bodies.
+lede: Generate Requests, HTTPX, or async aiohttp code while preserving methods, queries, headers, authentication, cookies, and request bodies.
 language: python
 client: requests
 languageLabel: Python
 clientLabel: Requests
 order: 10
 faqs:
-  - question: Should I use Requests or HTTPX?
-    answer: Requests is the long-standing synchronous default and is present in most existing codebases. HTTPX offers a nearly identical API plus async support and HTTP/2. The generated code differs in only a few argument names, so switching later is cheap.
+  - question: Should I use Requests, HTTPX, or aiohttp?
+    answer: Requests is the established synchronous default, HTTPX offers closely related sync and async APIs plus HTTP/2, and aiohttp is an asyncio-native client with mature streaming and session support. Use the client already aligned with your application's concurrency model.
   - question: Why does the converter refuse duplicate header names?
     answer: Both clients take headers as a dictionary, which cannot hold the same key twice. Rather than silently drop one of them and change what your server receives, the converter reports the limitation so you can decide how to handle it.
   - question: Why is my JSON body sent with data= instead of json=?
@@ -20,10 +20,11 @@ faqs:
 related:
   - curl-to-python/requests
   - curl-to-python/httpx
+  - curl-to-python/aiohttp
   - curl-to-javascript
 ---
 
-## Requests and HTTPX output
+## Requests, HTTPX, and aiohttp output
 
 Choose Requests for the familiar synchronous Python API, or HTTPX for a modern
 client with a closely related interface. CurlToCode emits the required import and
@@ -34,6 +35,10 @@ The two clients differ in small but real ways. Requests uses `allow_redirects`
 where HTTPX uses `follow_redirects`, and a raw body goes to `data=` on Requests
 but `content=` on HTTPX. The generated code uses whichever is correct for the
 client you picked.
+
+aiohttp produces a complete `asyncio.run` program with nested async context
+managers. It uses a list of header pairs to retain repeated names and an
+`ExitStack` to keep uploaded files open until the awaited request finishes.
 
 ## Forms, authentication, and files
 

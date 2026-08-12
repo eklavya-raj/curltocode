@@ -1,18 +1,18 @@
 ---
 slug: curl-to-javascript
-title: cURL to JavaScript Converter – Fetch & Axios | CurlToCode
-description: Convert cURL to JavaScript Fetch or Axios code in your browser. Preserve JSON, forms, headers, cookies, authentication, and query parameters exactly.
+title: cURL to JavaScript – Fetch, Axios & Undici | CurlToCode
+description: Convert cURL to JavaScript Fetch, Axios, or Node.js Undici code locally, preserving methods, bodies, headers, cookies, authentication, and queries.
 heading: Convert cURL to JavaScript
 eyebrow: Browser and Node.js requests
-lede: Turn a cURL command into standards-based Fetch or an Axios request without ever sending the represented HTTP request.
+lede: Turn a cURL command into standards-based Fetch, Axios, or Node.js Undici code without ever sending the represented HTTP request.
 language: javascript
 client: fetch
 languageLabel: JavaScript
 clientLabel: Fetch
 order: 20
 faqs:
-  - question: Should I use Fetch or Axios?
-    answer: Fetch is built into every current browser and into Node.js 18 and later, so it needs no dependency. Axios adds one but gives you interceptors, automatic JSON parsing, and errors that reject on non-2xx responses. Both generators preserve identical request semantics.
+  - question: Should I use Fetch, Axios, or Undici?
+    answer: Fetch is the portable built-in choice, Axios adds a broad convenience API, and Undici exposes a lower-level high-performance Node.js request API with ordered raw headers and dispatchers. Pick based on the runtime and surrounding code rather than conversion fidelity.
   - question: Why can't the converter handle curl -F with a file path?
     answer: Browser JavaScript has no filesystem access, so there is no honest way to turn /path/to/photo.png into a File object. The converter reports this rather than emitting code that looks correct but cannot work. Python, Go, PHP, Ruby, and Rust output can keep the path.
   - question: Why does the generated fetch include redirect manual?
@@ -20,15 +20,21 @@ faqs:
 related:
   - curl-to-javascript/fetch
   - curl-to-javascript/axios
+  - curl-to-javascript/undici
   - curl-to-typescript
 ---
 
-## Fetch or Axios
+## Fetch, Axios, or Undici
 
 Fetch is built into current browsers and modern Node.js. Axios adds a dependency
 but provides its own request configuration and response conventions, including
 rejecting on HTTP error statuses rather than resolving with `ok: false`. Both
 generators preserve the same normalized request semantics.
+
+Undici is the Node-specific option. Its `request` API can preserve duplicate
+headers through a flat ordered array and can retain local file references for
+multipart or binary bodies, capabilities browser-oriented output cannot safely
+claim.
 
 One difference worth knowing: Axios has a native `auth` option, so basic
 credentials are passed as a structured object rather than a precomputed

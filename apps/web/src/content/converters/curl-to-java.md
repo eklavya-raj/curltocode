@@ -1,29 +1,30 @@
 ---
 slug: curl-to-java
-title: cURL to Java Converter – HttpClient & OkHttp | CurlToCode
-description: Convert cURL commands to Java code using the built-in HttpClient or OkHttp. Headers, JSON, forms, uploads, cookies, and basic auth are preserved.
+title: cURL to Java – JDK, OkHttp & Apache HttpClient | CurlToCode
+description: Convert cURL to Java using JDK HttpClient, OkHttp, or Apache HttpClient 5, preserving bodies, headers, cookies, auth, redirects, and uploads.
 heading: Convert cURL to Java
 eyebrow: Java HTTP clients
-lede: Generate compilable Java for the JDK's built-in HttpClient or for OkHttp, with the differences between them made explicit rather than hidden.
+lede: Generate compilable Java for the JDK client, OkHttp, or Apache HttpClient 5, with each library's real capabilities and limitations made explicit.
 language: java
 client: httpclient
 languageLabel: Java
 clientLabel: HttpClient
 order: 30
 faqs:
-  - question: Should I use java.net.http.HttpClient or OkHttp?
-    answer: HttpClient has been in the JDK since Java 11 and needs no dependency, which makes it the better default. Choose OkHttp when you need multipart uploads, connection pooling you can tune, or interceptors, since the built-in client has no multipart body publisher at all.
+  - question: Which Java HTTP client should I choose?
+    answer: JDK HttpClient needs no dependency, OkHttp offers an ergonomic modern API and interceptors, and Apache HttpClient 5 provides extensive classic-client configuration and mature multipart support. Prefer the client already standardized in your codebase.
   - question: Why does the multipart example fail for HttpClient?
     answer: Because java.net.http has no multipart BodyPublisher. Building the boundary and part headers by hand is error-prone, so rather than emit fragile code the converter reports the limitation and points you at the OkHttp output, which supports multipart natively.
   - question: Why does the generated code wrap everything in a Main class?
     answer: Both clients throw checked exceptions when a request is executed. The statements are placed inside a main method declared with throws Exception so the snippet compiles as written with javac rather than being a fragment you have to repair.
 related:
+  - curl-to-java/apache-httpclient
   - curl-to-csharp
   - curl-to-go
   - curl-to-rust
 ---
 
-## Two clients, two sets of trade-offs
+## Three clients, three sets of trade-offs
 
 The JDK client is built into Java 11 and later, so a request needs no build
 configuration at all. It covers ordinary JSON, text, form, and file bodies well.
@@ -33,6 +34,10 @@ OkHttp adds a dependency but handles multipart natively through
 `MultipartBody.Builder`, and its `Request.Builder` API is generally more
 ergonomic. Both outputs preserve the same normalized request, so switching
 between them does not change what goes over the wire.
+
+Apache HttpClient 5 uses `HttpUriRequestBase`, so arbitrary method strings and
+entities share one path. Its `MultipartEntityBuilder` covers uploads while the
+response-handler form ensures response entities release their connections.
 
 ## Restricted headers
 

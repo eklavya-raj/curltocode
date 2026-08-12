@@ -4,15 +4,15 @@ CurlToCode is a local-first developer tool for converting cURL to code and stati
 
 ## Supported conversions
 
-- cURL to JavaScript Fetch and Axios
-- cURL to TypeScript Fetch and Axios
-- cURL to Python Requests and HTTPX
-- cURL to Go net/http
-- cURL to PHP's cURL extension
-- cURL to Java HttpClient and OkHttp
-- cURL to C# HttpClient
-- cURL to Ruby Net::HTTP
-- cURL to Rust reqwest
+- cURL to JavaScript Fetch, Axios, and Undici
+- cURL to TypeScript Fetch, Axios, and Undici
+- cURL to Python Requests, HTTPX, and aiohttp
+- cURL to Go net/http and Resty v3
+- cURL to PHP's cURL extension and Guzzle
+- cURL to Java JDK HttpClient, OkHttp, and Apache HttpClient 5
+- cURL to C# HttpClient and RestSharp
+- cURL to Ruby Net::HTTP and Faraday
+- cURL to Rust reqwest and ureq
 - JavaScript/TypeScript Fetch and Axios to POSIX-shell cURL
 
 Conversion is static. The project never executes cURL or pasted code, never contacts represented URLs, and does not persist raw converter input.
@@ -34,9 +34,10 @@ The core and generator packages do not depend on React, Astro, Tailwind, the DOM
 ### Correctness boundaries
 
 - Request bodies retain their normalized kind and original raw JSON/form bytes. Generators avoid JSON reserialization when it would change those bytes.
-- Duplicate headers remain ordered in the model and cURL output. Fetch, Axios, Requests, and HTTPX emit a controlled limitation because their normal header mappings cannot reliably preserve repeated names.
+- Duplicate headers remain ordered in the model and cURL output. Clients with mapping-only header APIs, including Fetch, Axios, Requests, HTTPX, and Faraday, emit a controlled limitation instead of dropping a value; clients with ordered or multi-value APIs preserve every entry.
 - Multipart text and file parts retain their original order. Python uses the clients' `files` tuple form even for text-only multipart bodies so `-F` is never downgraded to URL encoding.
 - Browser generators reject local file references, and Fetch rejects GET/HEAD bodies that its runtime cannot represent.
+- Multipart is generated only through stable client APIs. ureq currently reports it as unsupported because the crate exposes multipart under an explicitly unversioned module.
 - Generated cURL currently targets POSIX shells. Null bytes and dynamic source expressions are rejected rather than approximated.
 
 ### Reverse-parser tradeoff

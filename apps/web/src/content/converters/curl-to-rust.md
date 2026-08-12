@@ -1,10 +1,10 @@
 ---
 slug: curl-to-rust
-title: cURL to Rust Converter – reqwest | CurlToCode
-description: Convert cURL commands to async Rust reqwest code. Headers, JSON bodies, forms, multipart uploads, cookies, and basic auth are preserved exactly.
+title: cURL to Rust Converter – reqwest & ureq | CurlToCode
+description: Convert cURL to async reqwest or synchronous ureq Rust code, preserving custom methods, repeated headers, raw bodies, cookies, auth, and redirects.
 heading: Convert cURL to Rust
-eyebrow: Async HTTP with reqwest
-lede: Generate an async reqwest client and request chain that keeps your method, headers, cookies, authentication, and request body intact.
+eyebrow: Async and blocking Rust HTTP
+lede: Generate async reqwest or synchronous ureq code while keeping methods, headers, cookies, authentication, bodies, and redirect intent intact.
 language: rust
 client: reqwest
 languageLabel: Rust
@@ -14,10 +14,11 @@ faqs:
   - question: Which crates and features do I need?
     answer: reqwest and tokio. Multipart requests additionally need reqwest's multipart feature, which is not enabled by default. The converter reports the exact Cargo dependency lines alongside the generated code, including the feature flag when it is required.
   - question: Is the generated code async or blocking?
-    answer: Async. The output is a complete tokio::main function returning Result, using .send().await. reqwest also ships a blocking client behind its blocking feature, but async is the default that most projects use.
+    answer: reqwest output is an async Tokio program using send await. ureq output is synchronous and blocks the current thread, making it a smaller fit for command-line tools that do not otherwise need an async runtime.
   - question: How does reqwest handle redirects compared to curl?
     answer: reqwest follows up to ten redirects by default, which is the opposite of cURL. When the original command did not pass -L, the generated code builds the client with redirect::Policy::none() so the behaviour matches.
 related:
+  - curl-to-rust/ureq
   - curl-to-go
   - curl-to-java
   - curl-to-typescript
@@ -29,6 +30,10 @@ The generated program is a complete `#[tokio::main]` function returning
 `Result<(), Box<dyn std::error::Error>>`, which lets every fallible step use the
 `?` operator instead of unwrapping. The client is built once, then the request is
 composed as a builder chain and awaited.
+
+The ureq alternative builds a stable `http::Request` and runs it through a
+synchronous `Agent`. It needs no Tokio runtime and preserves repeated headers,
+but currently reports multipart because ureq exposes that API as unversioned.
 
 Standard verbs use the associated constants on `reqwest::Method`, such as
 `Method::POST`. A non-standard verb falls back to `Method::from_bytes` with a

@@ -14,28 +14,45 @@ export type GeneratorLanguage =
 export type GeneratorClient =
   | "fetch"
   | "axios"
+  | "undici"
   | "requests"
   | "httpx"
+  | "aiohttp"
   | "nethttp"
+  | "resty"
   | "curl"
+  | "guzzle"
   | "httpclient"
   | "okhttp"
-  | "reqwest";
+  | "apache"
+  | "restsharp"
+  | "faraday"
+  | "reqwest"
+  | "ureq";
 
 export type GeneratorId =
   | "javascript-fetch"
   | "javascript-axios"
+  | "javascript-undici"
   | "typescript-fetch"
   | "typescript-axios"
+  | "typescript-undici"
   | "python-requests"
   | "python-httpx"
+  | "python-aiohttp"
   | "go-nethttp"
+  | "go-resty"
   | "php-curl"
+  | "php-guzzle"
   | "java-httpclient"
   | "java-okhttp"
+  | "java-apache"
   | "csharp-httpclient"
+  | "csharp-restsharp"
   | "ruby-nethttp"
-  | "rust-reqwest";
+  | "ruby-faraday"
+  | "rust-reqwest"
+  | "rust-ureq";
 
 export interface GeneratedCode {
   readonly code: string;

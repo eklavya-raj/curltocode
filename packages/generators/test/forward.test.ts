@@ -29,17 +29,26 @@ describe("generator registry", () => {
     expect(keys).toEqual([
       "javascript-fetch",
       "javascript-axios",
+      "javascript-undici",
       "typescript-fetch",
       "typescript-axios",
+      "typescript-undici",
       "python-requests",
       "python-httpx",
+      "python-aiohttp",
       "go-nethttp",
+      "go-resty",
       "php-curl",
+      "php-guzzle",
       "java-httpclient",
       "java-okhttp",
+      "java-apache",
       "csharp-httpclient",
+      "csharp-restsharp",
       "ruby-nethttp",
+      "ruby-faraday",
       "rust-reqwest",
+      "rust-ureq",
     ]);
     expect(new Set(keys).size).toBe(keys.length);
   });

@@ -17,13 +17,21 @@ const LANGUAGES = [
 const CLIENTS = [
   "fetch",
   "axios",
+  "undici",
   "requests",
   "httpx",
+  "aiohttp",
   "nethttp",
+  "resty",
   "curl",
+  "guzzle",
   "httpclient",
   "okhttp",
+  "apache",
+  "restsharp",
+  "faraday",
   "reqwest",
+  "ureq",
 ] as const;
 
 /**
