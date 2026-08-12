@@ -92,6 +92,12 @@ const structuredData = buildStructuredData({
     <link rel="canonical" href={canonical} />
     <meta name="google-adsense-account" content="ca-pub-2111406329122011" />
 
+    {
+      /* The ICO is declared first as the fallback for clients that do not read
+        SVG icons, and because crawlers and feed readers probe /favicon.ico
+        directly regardless of what is declared here. */
+    }
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />

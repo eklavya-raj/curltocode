@@ -7,6 +7,7 @@
  * no new dependency. Requires `rsvg-convert` (librsvg) on the machine that runs
  * it.
  */
+import { Buffer } from "node:buffer";
 import { execFileSync } from "node:child_process";
 import {
   mkdirSync,
@@ -108,6 +109,47 @@ function rasterize(svg, outputPath, width, height) {
   rmSync(temporary);
 }
 
+/**
+ * Pack PNG frames into a classic `.ico`.
+ *
+ * A declared SVG icon is not enough on its own: browsers, crawlers, feed
+ * readers, and bookmark managers still probe `/favicon.ico` directly, and
+ * without one they receive the HTML 404 page instead of an image.
+ *
+ * Icon frames may be PNG-compressed rather than BMP, which is what keeps this
+ * to a few lines of buffer arithmetic and no new dependency.
+ */
+function packIco(frames) {
+  const header = Buffer.alloc(6);
+  header.writeUInt16LE(0, 0); // reserved
+  header.writeUInt16LE(1, 2); // resource type: icon
+  header.writeUInt16LE(frames.length, 4);
+
+  const directory = Buffer.alloc(frames.length * 16);
+  let offset = header.length + directory.length;
+  frames.forEach((frame, index) => {
+    const entry = index * 16;
+    // A 256px frame is encoded as 0; nothing here is that large, but the
+    // convention is worth respecting if a size is ever added.
+    const dimension = frame.size >= 256 ? 0 : frame.size;
+    directory.writeUInt8(dimension, entry);
+    directory.writeUInt8(dimension, entry + 1);
+    directory.writeUInt8(0, entry + 2); // palette entries: none, it is truecolour
+    directory.writeUInt8(0, entry + 3); // reserved
+    directory.writeUInt16LE(1, entry + 4); // colour planes
+    directory.writeUInt16LE(32, entry + 6); // bits per pixel
+    directory.writeUInt32LE(frame.data.length, entry + 8);
+    directory.writeUInt32LE(offset, entry + 12);
+    offset += frame.data.length;
+  });
+
+  return Buffer.concat([
+    header,
+    directory,
+    ...frames.map((frame) => frame.data),
+  ]);
+}
+
 /** Read slug/heading/clientLabel out of a content file's frontmatter. */
 function readConverters(directory) {
   const results = [];
@@ -164,6 +206,21 @@ rasterize(
   join(publicDir, "icon-maskable-512.png"),
   512,
   512,
+);
+
+// 16 and 32 cover browser tabs and bookmarks; 48 is the size Google's crawler
+// prefers when it picks a favicon for search results.
+writeFileSync(
+  join(publicDir, "favicon.ico"),
+  packIco(
+    [16, 32, 48].map((size) => {
+      const framePath = join(publicDir, `.favicon-${size}.png`);
+      rasterize(iconSvg(size), framePath, size, size);
+      const data = readFileSync(framePath);
+      rmSync(framePath);
+      return { size, data };
+    }),
+  ),
 );
 
 process.stdout.write("Generated social images and icons in public/.\n");

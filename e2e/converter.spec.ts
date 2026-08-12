@@ -349,6 +349,32 @@ test("serves installable app metadata and a dedicated maskable icon", async ({
   expect(iconResponse.headers()["content-type"]).toBe("image/png");
 });
 
+test("serves both favicon formats, including the conventional /favicon.ico", async ({
+  page,
+  request,
+}) => {
+  await page.goto("/");
+  await expect(
+    page.locator('link[rel="icon"][href="/favicon.ico"]'),
+  ).toHaveCount(1);
+  await expect(
+    page.locator('link[rel="icon"][href="/favicon.svg"]'),
+  ).toHaveCount(1);
+
+  const svg = await request.get("/favicon.svg");
+  expect(svg.ok()).toBe(true);
+  expect(svg.headers()["content-type"]).toContain("image/svg+xml");
+
+  // Clients probe this path directly whatever the markup declares. Serving the
+  // HTML 404 here is the regression this guards against, so the body is checked
+  // rather than only the status.
+  const ico = await request.get("/favicon.ico");
+  expect(ico.ok()).toBe(true);
+  const body = await ico.body();
+  expect(body.subarray(0, 4)).toEqual(Buffer.from([0, 0, 1, 0]));
+  expect(body.readUInt16LE(4)).toBeGreaterThanOrEqual(3);
+});
+
 test("persists theme preference and keeps keyboard focus visible", async ({
   page,
 }) => {
