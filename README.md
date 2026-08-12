@@ -71,49 +71,47 @@ with `pnpm assets`.
 Asset generation requires the local `rsvg-convert` command, but ordinary
 installs and production builds do not.
 
-## Cloudflare Pages
+## Cloudflare Workers Static Assets
 
-The website is a fully static Astro build. The root `wrangler.jsonc` points
-Cloudflare Pages at `apps/web/dist`; there are no Pages Functions, Workers, or
-runtime bindings. Converter input remains entirely in the browser.
+The website is a fully static Astro build deployed through Workers Static
+Assets. The root `wrangler.jsonc` points Wrangler at `apps/web/dist`; it has no
+Worker entry point, server code, or runtime bindings. Requests are served
+directly from Cloudflare's asset infrastructure, and converter input remains
+entirely in the browser.
 
-For a Git-connected Pages project, configure the repository from its root:
+For a Git-connected Workers Builds project, configure the repository from its
+root:
 
 ```text
 Root directory: (leave blank)
 Build command: pnpm run build
-Build output directory: apps/web/dist
+Deploy command: npx wrangler deploy
 Production branch: main
 ```
 
-If the Cloudflare form asks for a **Deploy command**, it is the Workers Builds
-flow rather than Pages Git integration. Return to Workers & Pages and create a
-Pages project with Git integration. The Pages form asks for a **Build output
-directory** instead.
-
 Do not set the root directory to `/apps/web`: the root build first compiles the
-three workspace packages consumed by the Astro app. The same deploy output
-directory is defined as `./apps/web/dist` in `wrangler.jsonc` for local or
-manual Pages deployments.
+three workspace packages consumed by the Astro app. Wrangler reads the static
+asset output from `./apps/web/dist`, serves the generated `404.html` for missing
+routes, and removes trailing slashes to match the site's canonical URLs.
 
-Cloudflare Pages reads Node.js `24` from `.node-version`. The exact pnpm release
-is pinned through the root `packageManager` field. If the selected Cloudflare
-build image does not honor that field, add `PNPM_VERSION=10.33.0` in the project
-build environment.
+Cloudflare reads Node.js `24` from `.node-version`. The exact pnpm release is
+pinned through the root `packageManager` field. If the selected build image does
+not honor that field, add `PNPM_VERSION=10.33.0` in the project build
+environment.
 
-To inspect the production build through the local Pages runtime without
+To inspect the production build through the local Cloudflare runtime without
 deploying it:
 
 ```bash
 pnpm build
-pnpm preview:pages
+pnpm preview:cloudflare
 ```
 
 To deploy manually after authenticating Wrangler:
 
 ```bash
 pnpm build
-pnpm deploy:pages
+pnpm deploy:cloudflare
 ```
 
 ## Public API direction

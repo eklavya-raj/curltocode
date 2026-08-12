@@ -5,8 +5,8 @@ import { describe, expect, it } from "vitest";
 
 const workspaceRoot = resolve(import.meta.dirname, "../../..");
 
-describe("Cloudflare Pages deployment", () => {
-  it("deploys the static Astro output from the workspace root", () => {
+describe("Cloudflare Workers Static Assets deployment", () => {
+  it("deploys the static Astro output without workspace auto-detection", () => {
     const configSource = readFileSync(
       resolve(workspaceRoot, "wrangler.jsonc"),
       "utf8",
@@ -17,10 +17,16 @@ describe("Cloudflare Pages deployment", () => {
 
     expect(config).toMatchObject({
       name: "curltocode",
-      pages_build_output_dir: "./apps/web/dist",
       compatibility_date: "2026-08-12",
+      assets: {
+        directory: "./apps/web/dist",
+        not_found_handling: "404-page",
+        html_handling: "drop-trailing-slash",
+      },
+      observability: { enabled: false },
       send_metrics: false,
     });
+    expect(config).not.toHaveProperty("pages_build_output_dir");
   });
 
   it("ships Cloudflare security and immutable asset headers", () => {
