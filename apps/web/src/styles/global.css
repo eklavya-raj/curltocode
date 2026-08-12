@@ -269,9 +269,42 @@ h1 {
   border-radius: 8px;
   background: var(--surface);
   color: var(--ink);
-  padding: 8px 30px 8px 10px;
+  padding: 8px 30px 8px 38px;
   text-transform: none;
   letter-spacing: normal;
+}
+.select-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.target-icon {
+  position: absolute;
+  left: 10px;
+  z-index: 1;
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  color: var(--ink);
+}
+.target-icon-brand svg {
+  width: 15px;
+  height: 15px;
+  fill: currentColor;
+}
+.target-icon-monogram {
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--surface-muted);
+  font: 800 0.57rem/1 var(--font-mono);
+  letter-spacing: -0.05em;
+  text-transform: none;
+}
+.select-control:has(select:disabled) .target-icon {
+  opacity: 0.55;
 }
 .editor-grid {
   display: grid;

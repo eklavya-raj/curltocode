@@ -14,6 +14,7 @@ import {
 } from "curltocode";
 
 import RequestInspector from "./RequestInspector";
+import TargetIcon from "./TargetIcon";
 
 type Mode = "curl-to-code" | "code-to-curl";
 
@@ -296,32 +297,42 @@ export default function Converter({
             <>
               <label className="field">
                 Language
-                <select
-                  value={language}
-                  onChange={(event) =>
-                    changeLanguage(event.target.value as Language)
-                  }
-                >
-                  {LANGUAGES.map((entry) => (
-                    <option value={entry} key={entry}>
-                      {languageLabels[entry]}
-                    </option>
-                  ))}
-                </select>
+                <span className="select-control">
+                  <TargetIcon kind="language" value={language} />
+                  <select
+                    aria-label="Language"
+                    value={language}
+                    onChange={(event) =>
+                      changeLanguage(event.target.value as Language)
+                    }
+                  >
+                    {LANGUAGES.map((entry) => (
+                      <option value={entry} key={entry}>
+                        {languageLabels[entry]}
+                      </option>
+                    ))}
+                  </select>
+                </span>
               </label>
               <label className="field">
                 Client
-                <select
-                  value={client}
-                  onChange={(event) => setClient(event.target.value as Client)}
-                  disabled={availableClients.length < 2}
-                >
-                  {availableClients.map((entry) => (
-                    <option value={entry} key={entry}>
-                      {clientLabels[entry]}
-                    </option>
-                  ))}
-                </select>
+                <span className="select-control">
+                  <TargetIcon kind="client" value={client} />
+                  <select
+                    aria-label="Client"
+                    value={client}
+                    onChange={(event) =>
+                      setClient(event.target.value as Client)
+                    }
+                    disabled={availableClients.length < 2}
+                  >
+                    {availableClients.map((entry) => (
+                      <option value={entry} key={entry}>
+                        {clientLabels[entry]}
+                      </option>
+                    ))}
+                  </select>
+                </span>
               </label>
             </>
           )}

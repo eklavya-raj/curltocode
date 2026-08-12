@@ -59,6 +59,32 @@ describe("Converter", () => {
     );
   });
 
+  it("shows icons for the selected language and client", async () => {
+    const user = userEvent.setup();
+    render(<Converter />);
+    const converter = screen.getByLabelText("cURL and code converter");
+
+    expect(
+      converter.querySelector('[data-icon="language-javascript"]'),
+    ).toBeInTheDocument();
+    expect(
+      converter.querySelector('[data-icon="client-fetch"]'),
+    ).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText("Language"), "python");
+    expect(
+      converter.querySelector('[data-icon="language-python"]'),
+    ).toBeInTheDocument();
+    expect(
+      converter.querySelector('[data-icon="client-requests"]'),
+    ).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText("Client"), "aiohttp");
+    expect(
+      converter.querySelector('[data-icon="client-aiohttp"]'),
+    ).toBeInTheDocument();
+  });
+
   it.each([
     ["javascript", "fetch", "await fetch"],
     ["javascript", "axios", 'import axios from "axios"'],
