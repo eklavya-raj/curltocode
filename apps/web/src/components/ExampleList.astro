@@ -1,0 +1,48 @@
+---
+import type { RenderedExample } from "../lib/examples.js";
+
+interface Props {
+  examples: readonly RenderedExample[];
+  languageLabel: string;
+  clientLabel: string;
+}
+
+const { examples, languageLabel, clientLabel } = Astro.props;
+---
+
+<h2>{languageLabel} {clientLabel} examples</h2>
+<p>
+  Every snippet below is produced by the same converter that powers this page,
+  so it always matches what the tool emits today.
+</p>
+
+{
+  examples.map((example) => (
+    <div class="example-block">
+      <h3 id={example.id}>{example.heading}</h3>
+      <p>{example.summary}</p>
+      <div class="example-pair">
+        <figure>
+          <figcaption>cURL</figcaption>
+          <pre class="example">
+            <code>{example.curl}</code>
+          </pre>
+        </figure>
+        <figure>
+          <figcaption>
+            {languageLabel} · {clientLabel}
+          </figcaption>
+          {example.code === undefined ? (
+            <p class="limitation">
+              <strong>Not supported:</strong> {example.limitation}
+            </p>
+          ) : (
+            <pre class="example">
+              <code>{example.code}</code>
+            </pre>
+          )}
+        </figure>
+      </div>
+    </div>
+  ))
+}

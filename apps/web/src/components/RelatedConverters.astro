@@ -1,0 +1,28 @@
+---
+import type { CollectionEntry } from "astro:content";
+
+interface Props {
+  entries: readonly CollectionEntry<"converters">[];
+  title?: string;
+}
+
+const { entries, title = "Related converters" } = Astro.props;
+---
+
+{
+  entries.length > 0 && (
+    <nav class="related-section" aria-label={title}>
+      <h2>{title}</h2>
+      <ul class="related-grid">
+        {entries.map((entry) => (
+          <li>
+            <a href={`/${entry.data.slug}`}>
+              <span class="related-name">{entry.data.heading}</span>
+              <span class="related-client">{entry.data.clientLabel}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  )
+}

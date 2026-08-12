@@ -1,0 +1,45 @@
+{
+  "name": "curltocode-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "assets": "pnpm --filter @curltocode/web assets",
+    "build": "pnpm --filter @curltocode/core build && pnpm --filter @curltocode/generators build && pnpm --filter curltocode build && pnpm --filter @curltocode/web build",
+    "dev": "pnpm --filter @curltocode/web dev",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "@playwright/test": "1.62.1",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.2",
+    "@testing-library/user-event": "14.6.4",
+    "@types/node": "26.2.0",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
+    "@vitest/coverage-v8": "4.1.10",
+    "eslint": "9.39.5",
+    "eslint-plugin-jsx-a11y": "6.10.2",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "fast-check": "4.9.0",
+    "globals": "17.10.0",
+    "jsdom": "30.0.1",
+    "prettier": "3.9.6",
+    "prettier-plugin-astro": "0.14.1",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.67.0",
+    "vitest": "4.1.10"
+  }
+}

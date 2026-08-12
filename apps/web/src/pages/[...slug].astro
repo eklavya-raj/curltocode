@@ -1,0 +1,110 @@
+---
+import { getCollection, render } from "astro:content";
+
+import Converter from "../components/Converter";
+import ExampleList from "../components/ExampleList.astro";
+import FaqList from "../components/FaqList.astro";
+import RelatedConverters from "../components/RelatedConverters.astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { renderExamples } from "../lib/examples.js";
+import type { BreadcrumbEntry } from "../lib/structured-data.js";
+
+export async function getStaticPaths() {
+  const converters = await getCollection("converters");
+  return converters.map((entry) => ({
+    params: { slug: entry.data.slug },
+    props: { entry },
+  }));
+}
+
+const { entry } = Astro.props;
+const data = entry.data;
+const { Content } = await render(entry);
+
+const examples = renderExamples({
+  language: data.language,
+  client: data.client,
+});
+
+const all = await getCollection("converters");
+const parent =
+  data.parent === undefined
+    ? undefined
+    : all.find((candidate) => candidate.data.slug === data.parent);
+
+const breadcrumbs: BreadcrumbEntry[] = [
+  { name: "Converters", path: "/converters" },
+  ...(parent === undefined
+    ? []
+    : [{ name: parent.data.languageLabel, path: `/${parent.data.slug}` }]),
+  {
+    name: parent === undefined ? data.languageLabel : data.clientLabel,
+    path: `/${data.slug}`,
+  },
+];
+
+const related = data.related
+  .map((slug) => all.find((candidate) => candidate.data.slug === slug))
+  .filter((candidate) => candidate !== undefined);
+
+const featureList = [
+  `cURL to ${data.languageLabel} ${data.clientLabel}`,
+  "Local, in-browser conversion",
+  "Headers, cookies, authentication, and request bodies",
+];
+---
+
+<BaseLayout
+  title={data.title}
+  description={data.description}
+  ogImage={`/og/${data.slug.replace("/", "-")}.png`}
+  breadcrumbs={breadcrumbs}
+  faqs={data.faqs}
+  featureList={featureList}
+>
+  <div class="shell">
+    <nav class="breadcrumbs" aria-label="Breadcrumb">
+      <ol>
+        <li><a href="/">Home</a></li>
+        {
+          breadcrumbs.map((crumb, index) => (
+            <li>
+              {index === breadcrumbs.length - 1 ? (
+                <span aria-current="page">{crumb.name}</span>
+              ) : (
+                <a href={crumb.path}>{crumb.name}</a>
+              )}
+            </li>
+          ))
+        }
+      </ol>
+    </nav>
+    <header class="hero">
+      <span class="eyebrow">{data.eyebrow}</span>
+      <h1>{data.heading}</h1>
+      <p class="lede">{data.lede}</p>
+      <p class="privacy-note">
+        <span class="privacy-dot" aria-hidden="true"></span> Conversion runs in your
+        browser. Nothing is uploaded.
+      </p>
+    </header>
+    <Converter
+      initialLanguage={data.language}
+      initialClient={data.client}
+      client:load
+    />
+  </div>
+
+  <section class="content-section">
+    <div class="shell prose">
+      <ExampleList
+        examples={examples}
+        languageLabel={data.languageLabel}
+        clientLabel={data.clientLabel}
+      />
+      <Content />
+      <FaqList faqs={data.faqs} />
+      <RelatedConverters entries={related} />
+    </div>
+  </section>
+</BaseLayout>

@@ -1,0 +1,4 @@
+curl 'https://api.example.com/users' \
+  -X PATCH \
+  -H 'Content-Type: application/json' \
+  --data-raw '{"active":true}'

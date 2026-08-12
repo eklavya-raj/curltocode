@@ -1,0 +1,7 @@
+dist
+AGENTS.md
+.astro
+coverage
+pnpm-lock.yaml
+playwright-report
+test-results

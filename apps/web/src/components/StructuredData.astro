@@ -1,0 +1,10 @@
+---
+interface Props {
+  value: Record<string, unknown>;
+}
+
+const { value } = Astro.props;
+const serialized = JSON.stringify(value).replaceAll("<", "\\u003c");
+---
+
+<script is:inline type="application/ld+json" set:html={serialized} />

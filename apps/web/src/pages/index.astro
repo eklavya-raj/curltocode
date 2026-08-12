@@ -1,0 +1,101 @@
+---
+import { getCollection } from "astro:content";
+
+import Converter from "../components/Converter";
+import FaqList from "../components/FaqList.astro";
+import RelatedConverters from "../components/RelatedConverters.astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import type { FaqEntry } from "../lib/structured-data.js";
+
+const converters = await getCollection("converters");
+const hubs = converters
+  .filter((entry) => entry.data.parent === undefined)
+  .sort((a, b) => a.data.order - b.data.order);
+
+const title = "cURL to Code Converter – Python, Go, Java & More | CurlToCode";
+const description =
+  "Convert cURL commands to Python, JavaScript, Go, Rust, Java, C#, PHP, and Ruby, or convert code back to cURL. Free and processed entirely in your browser.";
+
+const faqs: readonly FaqEntry[] = [
+  {
+    question: "Is my request data sent anywhere?",
+    answer:
+      "No. Parsing and code generation both run in your browser using WebAssembly-free JavaScript. Nothing you paste is uploaded, logged, or sent to analytics, which is why it is safe to paste a command containing a real API key.",
+  },
+  {
+    question: "Does CurlToCode execute the request I paste?",
+    answer:
+      "Never. The converter reads your command and produces source code from it. It does not contact the URL, run the generated code, or evaluate any JavaScript you paste in the reverse direction.",
+  },
+  {
+    question: "Which languages and HTTP clients are supported?",
+    answer:
+      "JavaScript and TypeScript with Fetch or Axios, Python with Requests or HTTPX, Go with net/http, Java with HttpClient or OkHttp, C# with HttpClient, PHP with the cURL extension, Ruby with Net::HTTP, and Rust with reqwest.",
+  },
+  {
+    question: "Can it convert code back into a cURL command?",
+    answer:
+      "Yes, for statically analysable JavaScript and TypeScript Fetch and Axios calls. The parser reads your code as a syntax tree rather than running it, so a value produced at runtime is reported as an unresolved expression instead of being guessed.",
+  },
+];
+
+const featureList = [
+  "cURL to nine languages and thirteen HTTP clients",
+  "Code back to cURL for Fetch and Axios",
+  "Entirely client-side conversion",
+];
+---
+
+<BaseLayout
+  title={title}
+  description={description}
+  faqs={faqs}
+  featureList={featureList}
+>
+  <div class="shell">
+    <header class="hero">
+      <span class="eyebrow">Private HTTP request conversion</span>
+      <h1>cURL ↔ Code Converter</h1>
+      <p class="lede">
+        Convert cURL to Python, JavaScript, Go, Rust, Java, C#, PHP, and Ruby —
+        or convert code back to cURL.
+      </p>
+      <p class="privacy-note">
+        <span class="privacy-dot" aria-hidden="true"></span> 100% client-side. Your
+        requests and credentials never leave your browser.
+      </p>
+    </header>
+    <Converter client:load />
+  </div>
+
+  <section class="content-section">
+    <div class="shell">
+      <h2>One request model, reliable output</h2>
+      <p>
+        CurlToCode tokenizes your shell command, parses cURL semantics into a
+        normalized HTTP request, and then generates idiomatic code for the
+        client you choose. Because every generator reads the same model, the
+        request that reaches your server is the same one cURL would have sent,
+        whichever language you pick.
+      </p>
+      <h3>Conversions are exact, or they are refused</h3>
+      <p>
+        When a client genuinely cannot express something — duplicate header
+        names in a Python dictionary, a multipart body in the JDK HTTP client, a
+        local file path in browser JavaScript — the converter reports that
+        limitation instead of emitting code that quietly sends something
+        different. Code-to-cURL uses an abstract syntax tree, so a dynamic
+        expression is reported rather than guessed.
+      </p>
+      <h3>Safe by design</h3>
+      <p>
+        The converter does not execute cURL, JavaScript, or generated code. It
+        does not contact request URLs. Raw input is not persisted, logged, or
+        sent to analytics.
+      </p>
+
+      <RelatedConverters entries={hubs} title="Choose a language" />
+      <FaqList faqs={faqs} />
+    </div>
+  </section>
+</BaseLayout>

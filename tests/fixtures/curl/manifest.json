@@ -1,0 +1,24 @@
+{
+  "valid": [
+    { "file": "simple-get.curl", "method": "GET", "bodyKind": null },
+    { "file": "query-params.curl", "method": "GET", "bodyKind": null },
+    { "file": "post-json.curl", "method": "POST", "bodyKind": "json" },
+    {
+      "file": "post-form.curl",
+      "method": "POST",
+      "bodyKind": "form-urlencoded"
+    },
+    { "file": "bearer-auth.curl", "method": "GET", "bodyKind": null },
+    { "file": "basic-auth.curl", "method": "GET", "bodyKind": null },
+    { "file": "cookies.curl", "method": "GET", "bodyKind": null },
+    { "file": "multipart.curl", "method": "POST", "bodyKind": "multipart" },
+    { "file": "file-upload.curl", "method": "POST", "bodyKind": "multipart" },
+    { "file": "duplicate-headers.curl", "method": "GET", "bodyKind": null },
+    { "file": "unicode.curl", "method": "POST", "bodyKind": "json" },
+    { "file": "multiline.curl", "method": "PATCH", "bodyKind": "json" }
+  ],
+  "invalid": [
+    { "file": "malformed-unclosed.curl", "code": "CURL_UNCLOSED_QUOTE" },
+    { "file": "unsupported-option.curl", "code": "CURL_UNSUPPORTED_OPTION" }
+  ]
+}

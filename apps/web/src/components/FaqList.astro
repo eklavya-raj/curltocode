@@ -1,0 +1,23 @@
+---
+import type { FaqEntry } from "../lib/structured-data.js";
+
+interface Props {
+  faqs: readonly FaqEntry[];
+}
+
+const { faqs } = Astro.props;
+---
+
+<section class="faq" aria-labelledby="faq-title">
+  <h2 id="faq-title">Frequently asked questions</h2>
+  <dl class="faq-list">
+    {
+      faqs.map((faq) => (
+        <div class="faq-item">
+          <dt>{faq.question}</dt>
+          <dd>{faq.answer}</dd>
+        </div>
+      ))
+    }
+  </dl>
+</section>

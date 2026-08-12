@@ -1,0 +1,27 @@
+{
+  "name": "@curltocode/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "assets": "node scripts/generate-assets.mjs",
+    "build": "astro build",
+    "dev": "astro dev",
+    "preview": "astro preview",
+    "typecheck": "astro check"
+  },
+  "dependencies": {
+    "@astrojs/react": "5.0.7",
+    "@astrojs/sitemap": "3.7.3",
+    "@tailwindcss/vite": "4.3.3",
+    "astro": "6.4.8",
+    "curltocode": "workspace:*",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "tailwindcss": "4.3.3"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.6",
+    "vite": "7.3.6"
+  }
+}

@@ -1,0 +1,19 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+const title = "Page not found | CurlToCode";
+const description =
+  "The requested CurlToCode page could not be found. Return to the private cURL and code converter.";
+---
+
+<BaseLayout title={title} description={description} noindex>
+  <section class="shell not-found">
+    <span class="eyebrow">HTTP 404</span>
+    <h1>Page not found</h1>
+    <p class="lede">
+      That route does not exist. The converter and supported language guides are
+      available from the homepage.
+    </p>
+    <a class="home-link" href="/">Open the cURL ↔ Code converter</a>
+  </section>
+</BaseLayout>

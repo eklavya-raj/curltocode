@@ -1,0 +1,165 @@
+---
+import { getCollection } from "astro:content";
+
+import StructuredData from "../components/StructuredData.astro";
+import ThemeToggle from "../components/ThemeToggle.astro";
+import type { BreadcrumbEntry, FaqEntry } from "../lib/structured-data.js";
+import { buildStructuredData } from "../lib/structured-data.js";
+import {
+  SITE_LANGUAGE,
+  SITE_LOCALE,
+  SITE_NAME,
+  SITE_URL,
+  absoluteUrl,
+  canonicalPath,
+} from "../lib/site.js";
+import "../styles/global.css";
+
+interface Props {
+  title: string;
+  description: string;
+  noindex?: boolean;
+  ogImage?: string;
+  breadcrumbs?: readonly BreadcrumbEntry[];
+  faqs?: readonly FaqEntry[];
+  featureList?: readonly string[];
+}
+
+const {
+  title,
+  description,
+  noindex = false,
+  ogImage = "/og/default.png",
+  breadcrumbs,
+  faqs,
+  featureList,
+} = Astro.props;
+
+// Footer navigation is derived from the collection so a new converter page is
+// linked site-wide without editing the layout.
+const converters = await getCollection("converters");
+const hubs = converters
+  .filter((entry) => entry.data.parent === undefined)
+  .sort((a, b) => a.data.order - b.data.order);
+const half = Math.ceil(hubs.length / 2);
+const toLink = (entry: (typeof hubs)[number]) => ({
+  href: `/${entry.data.slug}`,
+  label: entry.data.languageLabel,
+});
+const footerGroups = [
+  { title: "Converters", links: hubs.slice(0, half).map(toLink) },
+  { title: "More languages", links: hubs.slice(half).map(toLink) },
+  {
+    title: "Site",
+    links: [
+      { href: "/", label: "Converter" },
+      { href: "/converters", label: "All converters" },
+    ],
+  },
+];
+
+const canonical = absoluteUrl(canonicalPath(Astro.url.pathname));
+const ogImageUrl = absoluteUrl(ogImage);
+const structuredData = buildStructuredData({
+  canonical,
+  title,
+  description,
+  breadcrumbs,
+  faqs,
+  featureList,
+});
+---
+
+<!doctype html>
+<html lang={SITE_LANGUAGE}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="generator" content={Astro.generator} />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
+    <link rel="canonical" href={canonical} />
+
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="theme-color" content="#0d110e" />
+    <meta name="color-scheme" content="light dark" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={SITE_NAME} />
+    <meta property="og:locale" content={SITE_LOCALE} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImageUrl} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={`${title} — ${SITE_NAME}`} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImageUrl} />
+
+    <script is:inline>
+      (() => {
+        try {
+          const theme = localStorage.getItem("curltocode-theme");
+          if (theme === "light" || theme === "dark")
+            document.documentElement.dataset.theme = theme;
+        } catch {}
+      })();
+    </script>
+    {!noindex && <StructuredData value={structuredData} />}
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to main content</a>
+    <header class="site-header">
+      <nav class="shell site-nav" aria-label="Main navigation">
+        <a class="brand" href="/"
+          ><span class="brand-mark" aria-hidden="true">&lt;/&gt;</span> CurlToCode</a
+        >
+        <div class="nav-actions">
+          <div class="nav-links">
+            <a href="/curl-to-python">Python</a>
+            <a href="/curl-to-javascript">JavaScript</a>
+            <a href="/curl-to-go">Go</a>
+            <a href="/converters">All converters</a>
+          </div>
+          <ThemeToggle />
+        </div>
+      </nav>
+    </header>
+    <main id="main"><slot /></main>
+    <footer class="site-footer">
+      <div class="shell">
+        <div class="footer-links">
+          {
+            footerGroups.map((group) => (
+              <div>
+                <h2>{group.title}</h2>
+                <ul>
+                  {group.links.map((link) => (
+                    <li>
+                      <a href={link.href}>{link.label}</a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))
+          }
+        </div>
+        <p class="footer-note">
+          CurlToCode parses locally. It never executes or sends the requests you
+          paste.
+        </p>
+        <p class="footer-note footer-meta">
+          <a href={SITE_URL}>{SITE_NAME}</a> · <a href="/converters"
+            >All converters</a
+          >
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

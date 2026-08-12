@@ -1,0 +1,40 @@
+{
+  "name": "curltocode",
+  "version": "0.1.0",
+  "description": "Convert cURL to idiomatic code and statically resolvable JavaScript or TypeScript back to cURL.",
+  "homepage": "https://curltocode.com",
+  "keywords": [
+    "curl",
+    "http",
+    "fetch",
+    "axios",
+    "requests",
+    "converter"
+  ],
+  "license": "MIT",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "src"
+  ],
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "development": "./src/index.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@curltocode/core": "workspace:*",
+    "@curltocode/generators": "workspace:*"
+  }
+}

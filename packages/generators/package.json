@@ -1,0 +1,30 @@
+{
+  "name": "@curltocode/generators",
+  "version": "0.1.0",
+  "private": true,
+  "sideEffects": false,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "development": "./src/index.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./reverse": {
+      "types": "./src/reverse/index.ts",
+      "development": "./src/reverse/index.ts",
+      "import": "./dist/reverse/index.js",
+      "default": "./dist/reverse/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@babel/parser": "8.0.4",
+    "@babel/types": "8.0.4",
+    "@curltocode/core": "workspace:*"
+  }
+}
