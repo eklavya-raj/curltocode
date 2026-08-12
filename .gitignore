@@ -11,3 +11,4 @@ test-results/
 # Local agent instructions and implementation tracking.
 AGENTS.md
 PROGRESS.md
+.claude/

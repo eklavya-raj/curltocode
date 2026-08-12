@@ -330,9 +330,12 @@ export default function Converter({
       <div className="editor-grid">
         <div className="editor-pane">
           <div className="pane-header">
-            <h2 className="pane-title">
+            {/* A div, not a heading: the pane captions repeat on all 26 pages
+                and would otherwise sit in every document outline. The textareas
+                carry their own labels. */}
+            <div className="pane-title">
               {mode === "curl-to-code" ? "cURL input" : "Code input"}
-            </h2>
+            </div>
             <button
               className="action-button"
               type="button"
@@ -364,9 +367,9 @@ export default function Converter({
         </div>
         <div className="editor-pane">
           <div className="pane-header">
-            <h2 className="pane-title">
+            <div className="pane-title">
               {mode === "curl-to-code" ? "Generated code" : "Generated cURL"}
-            </h2>
+            </div>
             <button
               className="action-button"
               type="button"

@@ -43,6 +43,29 @@
     "[data-theme-toggle]",
   );
 
+  const THEME_COLORS = { light: "#f6f7f3", dark: "#0d110e" } as const;
+
+  /**
+   * The static head declares one media-scoped `theme-color` per scheme, which is
+   * correct while the theme follows the system. An explicit choice must beat
+   * both, so it is expressed as a later unscoped tag: browsers honour the last
+   * matching one. Removing it restores the media-scoped pair.
+   */
+  function applyThemeColor(theme: Theme): void {
+    const existing = document.querySelector<HTMLMetaElement>(
+      "meta[data-theme-color-override]",
+    );
+    if (theme === "system") {
+      existing?.remove();
+      return;
+    }
+    const meta = existing ?? document.createElement("meta");
+    meta.name = "theme-color";
+    meta.dataset.themeColorOverride = "";
+    meta.content = THEME_COLORS[theme];
+    if (existing === null) document.head.append(meta);
+  }
+
   function storedTheme(): Theme {
     try {
       const value = window.localStorage.getItem("curltocode-theme");
@@ -76,11 +99,14 @@
       // Theme persistence is optional when storage is blocked.
     }
 
+    applyThemeColor(theme);
     renderTheme(theme);
   }
 
   if (themeButton !== null) {
-    renderTheme(storedTheme());
+    const initial = storedTheme();
+    applyThemeColor(initial);
+    renderTheme(initial);
     themeButton.addEventListener("click", () => {
       const current = storedTheme();
       const next: Theme =

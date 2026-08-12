@@ -1,10 +1,16 @@
+/* Inter is self-hosted rather than merely named, so typography is identical on
+   machines that do not happen to have it installed. Subsets are gated by
+   unicode-range, so an English page downloads only the latin file. */
+@import "@fontsource-variable/inter/wght.css";
 @import "tailwindcss";
 
 @theme {
   --font-sans:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", sans-serif;
-  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    "Inter Variable", Inter, ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono",
+    monospace;
   --color-accent: #65a30d;
 }
 
@@ -125,6 +131,58 @@ a {
 }
 .nav-links a:hover {
   color: var(--ink);
+}
+.nav-toggle {
+  display: none;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+.nav-toggle:hover {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+.nav-toggle-icon {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+.site-menu {
+  display: none;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+.site-menu[hidden] {
+  display: none;
+}
+.site-menu-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px 10px;
+  margin: 0;
+  padding: 10px 0 14px;
+  list-style: none;
+}
+.site-menu-list a {
+  display: block;
+  border-radius: 8px;
+  padding: 10px 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.site-menu-list a:hover {
+  background: var(--surface-muted);
+  color: var(--accent);
 }
 .theme-toggle {
   width: 38px;
@@ -344,7 +402,7 @@ h1 {
   padding: 7px 9px;
   font-size: 0.82rem;
   font-weight: 600;
-  cursor: default;
+  cursor: pointer;
   outline: none;
   user-select: none;
 }
@@ -576,6 +634,30 @@ h1 {
   color: var(--ink);
   font: 0.85rem/1.65 var(--font-mono);
   white-space: pre;
+}
+
+/* Shiki renders both palettes as custom properties (lib/highlight.ts), so the
+   theme is selected here rather than baked into the markup. Backgrounds stay
+   with `.example` so code blocks match the surrounding surface. */
+.shiki,
+.shiki span {
+  color: var(--shiki-light);
+  background: transparent;
+}
+:root[data-theme="dark"] .shiki,
+:root[data-theme="dark"] .shiki span {
+  color: var(--shiki-dark);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .shiki,
+  :root:not([data-theme="light"]) .shiki span {
+    color: var(--shiki-dark);
+  }
+}
+.shiki code {
+  display: block;
+  width: fit-content;
+  min-width: 100%;
 }
 .related {
   display: flex;
@@ -813,6 +895,12 @@ h1 {
   }
   .nav-links {
     display: none;
+  }
+  .nav-toggle {
+    display: inline-grid;
+  }
+  .site-menu:not([hidden]) {
+    display: block;
   }
   .converter-toolbar {
     align-items: stretch;

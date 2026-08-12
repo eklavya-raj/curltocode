@@ -74,7 +74,7 @@ const structuredData = buildStructuredData({
 <html lang={SITE_LANGUAGE}>
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
     <meta name="description" content={description} />
@@ -84,7 +84,20 @@ const structuredData = buildStructuredData({
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
-    <meta name="theme-color" content="#0d110e" />
+    {
+      /* Browser chrome must track the palette. These cover the system default;
+        an explicit theme choice appends an overriding tag (ThemeToggle). */
+    }
+    <meta
+      name="theme-color"
+      content="#f6f7f3"
+      media="(prefers-color-scheme: light)"
+    />
+    <meta
+      name="theme-color"
+      content="#0d110e"
+      media="(prefers-color-scheme: dark)"
+    />
     <meta name="color-scheme" content="light dark" />
 
     <meta property="og:type" content="website" />
@@ -128,9 +141,77 @@ const structuredData = buildStructuredData({
             <a href="/converters">All converters</a>
           </div>
           <ThemeToggle />
+          <button
+            class="nav-toggle"
+            type="button"
+            data-nav-toggle
+            aria-expanded="false"
+            aria-controls="site-menu"
+            aria-label="Open navigation menu"
+          >
+            <svg class="nav-toggle-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 7h16M4 12h16M4 17h16"></path>
+            </svg>
+          </button>
         </div>
       </nav>
+      {
+        /* Every language is listed here because the inline links do not fit a
+          phone, and a header with no navigation strands mobile readers. */
+      }
+      <div class="site-menu" id="site-menu" data-nav-menu hidden>
+        <ul class="shell site-menu-list">
+          {
+            hubs.map((hub) => (
+              <li>
+                <a href={`/${hub.data.slug}`}>{hub.data.languageLabel}</a>
+              </li>
+            ))
+          }
+          <li><a href="/converters">All converters</a></li>
+        </ul>
+      </div>
     </header>
+    <script>
+      const toggle =
+        document.querySelector<HTMLButtonElement>("[data-nav-toggle]");
+      const menu = document.querySelector<HTMLElement>("[data-nav-menu]");
+
+      function setOpen(open: boolean): void {
+        if (toggle === null || menu === null) return;
+        menu.hidden = !open;
+        toggle.setAttribute("aria-expanded", String(open));
+        toggle.setAttribute(
+          "aria-label",
+          open ? "Close navigation menu" : "Open navigation menu",
+        );
+      }
+
+      if (toggle !== null && menu !== null) {
+        toggle.addEventListener("click", () => {
+          setOpen(menu.hidden);
+        });
+        document.addEventListener("keydown", (event) => {
+          if (event.key !== "Escape" || menu.hidden) return;
+          setOpen(false);
+          toggle.focus();
+        });
+        document.addEventListener("pointerdown", (event) => {
+          if (menu.hidden) return;
+          const target = event.target;
+          if (!(target instanceof Node)) return;
+          if (menu.contains(target) || toggle.contains(target)) return;
+          setOpen(false);
+        });
+        // The toggle is display:none above the breakpoint, so an open menu must
+        // not survive a resize into the desktop layout.
+        window
+          .matchMedia("(min-width: 761px)")
+          .addEventListener("change", (event) => {
+            if (event.matches) setOpen(false);
+          });
+      }
+    </script>
     <main id="main"><slot /></main>
     <footer class="site-footer">
       <div class="shell">

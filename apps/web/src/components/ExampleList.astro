@@ -1,13 +1,31 @@
 ---
+import type { GeneratorLanguage } from "curltocode";
+
 import type { RenderedExample } from "../lib/examples.js";
+import { CURL_LANGUAGE, grammarFor, highlight } from "../lib/highlight.js";
 
 interface Props {
   examples: readonly RenderedExample[];
+  language: GeneratorLanguage;
   languageLabel: string;
   clientLabel: string;
 }
 
-const { examples, languageLabel, clientLabel } = Astro.props;
+const { examples, language, languageLabel, clientLabel } = Astro.props;
+
+// Highlighting happens here, at build time, so the rendered pages carry no
+// syntax-highlighting JavaScript.
+const grammar = grammarFor(language);
+const highlighted = await Promise.all(
+  examples.map(async (example) => ({
+    ...example,
+    curlHtml: await highlight(example.curl, CURL_LANGUAGE),
+    codeHtml:
+      example.code === undefined
+        ? undefined
+        : await highlight(example.code, grammar),
+  })),
+);
 ---
 
 <h2>{languageLabel} {clientLabel} examples</h2>
@@ -17,29 +35,25 @@ const { examples, languageLabel, clientLabel } = Astro.props;
 </p>
 
 {
-  examples.map((example) => (
+  highlighted.map((example) => (
     <div class="example-block">
       <h3 id={example.id}>{example.heading}</h3>
       <p>{example.summary}</p>
       <div class="example-pair">
         <figure>
           <figcaption>cURL</figcaption>
-          <pre class="example">
-            <code>{example.curl}</code>
-          </pre>
+          <Fragment set:html={example.curlHtml} />
         </figure>
         <figure>
           <figcaption>
             {languageLabel} · {clientLabel}
           </figcaption>
-          {example.code === undefined ? (
+          {example.codeHtml === undefined ? (
             <p class="limitation">
               <strong>Not supported:</strong> {example.limitation}
             </p>
           ) : (
-            <pre class="example">
-              <code>{example.code}</code>
-            </pre>
+            <Fragment set:html={example.codeHtml} />
           )}
         </figure>
       </div>
