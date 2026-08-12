@@ -263,26 +263,130 @@ h1 {
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
-.field select {
+.select-trigger {
   min-width: 130px;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
   color: var(--ink);
-  padding: 8px 30px 8px 38px;
+  padding: 7px 9px 7px 10px;
+  font: inherit;
+  font-weight: 600;
   text-transform: none;
   letter-spacing: normal;
+  cursor: pointer;
 }
-.select-control {
-  position: relative;
+.select-trigger:hover,
+.select-trigger[data-state="open"] {
+  border-color: var(--accent);
+}
+.select-trigger:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.select-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.select-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.select-caret {
+  display: inline-flex;
+  margin-left: auto;
+  color: var(--muted);
+}
+.select-caret svg,
+.select-scroll-arrow svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+.select-trigger[data-state="open"] .select-caret {
+  transform: rotate(180deg);
+}
+.select-popup {
+  z-index: 80;
+  min-width: var(--radix-select-trigger-width);
+  max-width: min(280px, calc(100vw - 20px));
+  max-height: min(360px, var(--radix-select-content-available-height));
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 14px 38px rgb(0 0 0 / 16%);
+  transform-origin: var(--radix-select-content-transform-origin);
+}
+.select-list {
+  max-height: inherit;
+  overflow-y: auto;
+  padding: 5px;
+  overscroll-behavior: contain;
+}
+.select-item {
+  min-height: 38px;
   display: flex;
   align-items: center;
+  gap: 9px;
+  border-radius: 7px;
+  padding: 7px 9px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: default;
+  outline: none;
+  user-select: none;
+}
+.select-item[data-highlighted] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.select-item-text {
+  min-width: 0;
+  flex: 1;
+}
+.select-item-indicator {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+}
+.select-item-indicator svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+.select-scroll-arrow {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  color: var(--muted);
+}
+.select-scroll-arrow:first-child svg {
+  transform: rotate(180deg);
 }
 .target-icon {
-  position: absolute;
-  left: 10px;
-  z-index: 1;
   display: inline-flex;
+  flex: 0 0 auto;
   width: 20px;
   height: 20px;
   align-items: center;
@@ -302,9 +406,6 @@ h1 {
   font: 800 0.57rem/1 var(--font-mono);
   letter-spacing: -0.05em;
   text-transform: none;
-}
-.select-control:has(select:disabled) .target-icon {
-  opacity: 0.55;
 }
 .editor-grid {
   display: grid;
@@ -722,7 +823,7 @@ h1 {
   .field {
     flex: 1;
   }
-  .field select {
+  .select-trigger {
     width: 100%;
     min-width: 0;
   }

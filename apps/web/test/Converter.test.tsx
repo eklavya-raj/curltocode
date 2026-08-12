@@ -18,6 +18,25 @@ import Converter from "../src/components/Converter";
 const writeText = vi.fn<(value: string) => Promise<void>>();
 const valueOf = (label: string): string =>
   (screen.getByLabelText(label) as HTMLTextAreaElement).value;
+type User = ReturnType<typeof userEvent.setup>;
+
+async function chooseTarget(
+  user: User,
+  label: "Language" | "Client",
+  value: string,
+): Promise<void> {
+  const trigger = screen.getByRole("combobox", { name: label });
+  if (trigger.getAttribute("data-value") === value) return;
+  trigger.focus();
+  await user.keyboard("{Enter}");
+  await screen.findByRole("listbox");
+  const targetIndex = screen
+    .getAllByRole("option")
+    .findIndex((option) => option.getAttribute("data-value") === value);
+  if (targetIndex < 0) throw new Error(`Unknown option ${value}.`);
+  await user.keyboard(`{Home}${"{ArrowDown}".repeat(targetIndex)}{Enter}`);
+  expect(trigger).toHaveAttribute("data-value", value);
+}
 
 beforeEach(() => {
   writeText.mockResolvedValue(undefined);
@@ -45,21 +64,37 @@ describe("Converter", () => {
     expect(screen.getByText("page")).toBeInTheDocument();
   });
 
-  it("switches language and client using labeled keyboard-operable controls", async () => {
+  it("switches language and client using accessible controls", async () => {
     const user = userEvent.setup();
     render(<Converter />);
-    await user.selectOptions(screen.getByLabelText("Language"), "python");
-    expect(screen.getByLabelText("Client")).toHaveValue("requests");
+    await chooseTarget(user, "Language", "python");
+    expect(screen.getByLabelText("Client")).toHaveAttribute(
+      "data-value",
+      "requests",
+    );
     await waitFor(() =>
       expect(valueOf("Converted output")).toContain("requests.post"),
     );
-    await user.selectOptions(screen.getByLabelText("Client"), "httpx");
+    await chooseTarget(user, "Client", "httpx");
     await waitFor(() =>
       expect(valueOf("Converted output")).toContain("httpx.post"),
     );
   });
 
-  it("shows icons for the selected language and client", async () => {
+  it("supports keyboard opening, typeahead selection, and focus return", async () => {
+    const user = userEvent.setup();
+    render(<Converter />);
+    const language = screen.getByRole("combobox", { name: "Language" });
+
+    language.focus();
+    await user.keyboard("{Enter}py{Enter}");
+
+    expect(language).toHaveAttribute("data-value", "python");
+    expect(language).toHaveFocus();
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
+
+  it("shows icons in selected values and every menu option", async () => {
     const user = userEvent.setup();
     render(<Converter />);
     const converter = screen.getByLabelText("cURL and code converter");
@@ -71,7 +106,17 @@ describe("Converter", () => {
       converter.querySelector('[data-icon="client-fetch"]'),
     ).toBeInTheDocument();
 
-    await user.selectOptions(screen.getByLabelText("Language"), "python");
+    const languageSelect = screen.getByRole("combobox", {
+      name: "Language",
+    });
+    languageSelect.focus();
+    await user.keyboard("{Enter}");
+    const pythonOption = await screen.findByRole("option", { name: "Python" });
+    expect(
+      pythonOption.querySelector('[data-icon="language-python"]'),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("option")).toHaveLength(9);
+    await user.keyboard("py{Enter}");
     expect(
       converter.querySelector('[data-icon="language-python"]'),
     ).toBeInTheDocument();
@@ -79,7 +124,16 @@ describe("Converter", () => {
       converter.querySelector('[data-icon="client-requests"]'),
     ).toBeInTheDocument();
 
-    await user.selectOptions(screen.getByLabelText("Client"), "aiohttp");
+    const clientSelect = screen.getByRole("combobox", { name: "Client" });
+    clientSelect.focus();
+    await user.keyboard("{Enter}");
+    const aiohttpOption = await screen.findByRole("option", {
+      name: "aiohttp",
+    });
+    expect(
+      aiohttpOption.querySelector('[data-icon="client-aiohttp"]'),
+    ).toBeInTheDocument();
+    await user.keyboard("ai{Enter}");
     expect(
       converter.querySelector('[data-icon="client-aiohttp"]'),
     ).toBeInTheDocument();
@@ -113,9 +167,12 @@ describe("Converter", () => {
     async (language, client, expected) => {
       const user = userEvent.setup();
       render(<Converter />);
-      await user.selectOptions(screen.getByLabelText("Language"), language);
-      await user.selectOptions(screen.getByLabelText("Client"), client);
-      expect(screen.getByLabelText("Client")).toHaveValue(client);
+      await chooseTarget(user, "Language", language);
+      await chooseTarget(user, "Client", client);
+      expect(screen.getByLabelText("Client")).toHaveAttribute(
+        "data-value",
+        client,
+      );
       await waitFor(() =>
         expect(valueOf("Converted output")).toContain(expected),
       );
@@ -212,14 +269,14 @@ describe("Converter", () => {
   it("displays client dependency guidance", async () => {
     const user = userEvent.setup();
     render(<Converter />);
-    await user.selectOptions(screen.getByLabelText("Client"), "axios");
+    await chooseTarget(user, "Client", "axios");
     expect(await screen.findByText("npm install axios")).toBeInTheDocument();
-    await user.selectOptions(screen.getByLabelText("Language"), "python");
+    await chooseTarget(user, "Language", "python");
     expect(await screen.findByText("pip install requests")).toBeInTheDocument();
-    await user.selectOptions(screen.getByLabelText("Language"), "rust");
+    await chooseTarget(user, "Language", "rust");
     expect(await screen.findByText(/reqwest = "0\.13"/u)).toBeInTheDocument();
-    await user.selectOptions(screen.getByLabelText("Language"), "java");
-    await user.selectOptions(screen.getByLabelText("Client"), "okhttp");
+    await chooseTarget(user, "Language", "java");
+    await chooseTarget(user, "Client", "okhttp");
     expect(await screen.findByText(/okhttp:5\.3\.2/u)).toBeInTheDocument();
   });
 
@@ -262,7 +319,7 @@ describe("Converter", () => {
     expect(region).not.toHaveTextContent("visible-source");
     expect(region).toHaveTextContent("••••••••");
     expect(valueOf("cURL command")).toContain("super-secret");
-    await user.selectOptions(screen.getByLabelText("Client"), "axios");
+    await chooseTarget(user, "Client", "axios");
     expect(valueOf("Converted output")).toContain("super-secret");
   });
 

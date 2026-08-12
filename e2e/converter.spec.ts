@@ -37,6 +37,15 @@ async function openConverter(page: Page): Promise<void> {
     .waitFor();
 }
 
+async function chooseTarget(
+  page: Page,
+  label: "Language" | "Client",
+  option: string,
+): Promise<void> {
+  await page.getByRole("combobox", { name: label, exact: true }).click();
+  await page.getByRole("option", { name: option, exact: true }).click();
+}
+
 test("converts a POST JSON cURL to Python Requests", async ({ page }) => {
   await openConverter(page);
   await page
@@ -44,12 +53,8 @@ test("converts a POST JSON cURL to Python Requests", async ({ page }) => {
     .fill(
       `curl 'https://api.example.com/users' -X POST -H 'Content-Type: application/json' --data-raw '{"name":"Eklavya"}'`,
     );
-  await page
-    .getByRole("combobox", { name: "Language", exact: true })
-    .selectOption("python");
-  await page
-    .getByRole("combobox", { name: "Client", exact: true })
-    .selectOption("requests");
+  await chooseTarget(page, "Language", "Python");
+  await chooseTarget(page, "Client", "Requests");
   await expect(page.getByLabel("Converted output")).toHaveValue(
     /requests\.post/u,
   );
@@ -61,12 +66,8 @@ test("converts cURL to JavaScript Fetch", async ({ page }) => {
   await page
     .getByLabel("cURL command")
     .fill("curl -L 'https://api.example.com/users?page=1'");
-  await page
-    .getByRole("combobox", { name: "Language", exact: true })
-    .selectOption("javascript");
-  await page
-    .getByRole("combobox", { name: "Client", exact: true })
-    .selectOption("fetch");
+  await chooseTarget(page, "Language", "JavaScript");
+  await chooseTarget(page, "Client", "Fetch");
   await expect(page.getByLabel("Converted output")).toHaveValue(
     /await fetch\("https:\/\/api\.example\.com\/users\?page=1"\)/u,
   );
@@ -199,7 +200,10 @@ test("language pages render unique SEO metadata and a working converter", async 
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
     "Convert cURL to Python",
   );
-  await expect(page.getByLabel("Language")).toHaveValue("python");
+  await expect(page.getByLabel("Language")).toHaveAttribute(
+    "data-value",
+    "python",
+  );
   await expect(page.getByText("pip install requests")).toBeVisible();
 });
 
@@ -210,8 +214,11 @@ test("new language and client pages initialize their real generators", async ({
   await page
     .locator('[aria-label="cURL and code converter"][data-ready="true"]')
     .waitFor();
-  await expect(page.getByLabel("Language")).toHaveValue("go");
-  await expect(page.getByLabel("Client")).toHaveValue("nethttp");
+  await expect(page.getByLabel("Language")).toHaveAttribute("data-value", "go");
+  await expect(page.getByLabel("Client")).toHaveAttribute(
+    "data-value",
+    "nethttp",
+  );
   await expect(page.getByLabel("Client")).toBeEnabled();
   await expect(page.getByLabel("Converted output")).toHaveValue(
     /package main/u,
@@ -221,8 +228,14 @@ test("new language and client pages initialize their real generators", async ({
   await page
     .locator('[aria-label="cURL and code converter"][data-ready="true"]')
     .waitFor();
-  await expect(page.getByLabel("Language")).toHaveValue("java");
-  await expect(page.getByLabel("Client")).toHaveValue("okhttp");
+  await expect(page.getByLabel("Language")).toHaveAttribute(
+    "data-value",
+    "java",
+  );
+  await expect(page.getByLabel("Client")).toHaveAttribute(
+    "data-value",
+    "okhttp",
+  );
   await expect(page.getByLabel("Converted output")).toHaveValue(
     /OkHttpClient/u,
   );
@@ -232,8 +245,14 @@ test("new language and client pages initialize their real generators", async ({
   await page
     .locator('[aria-label="cURL and code converter"][data-ready="true"]')
     .waitFor();
-  await expect(page.getByLabel("Language")).toHaveValue("python");
-  await expect(page.getByLabel("Client")).toHaveValue("aiohttp");
+  await expect(page.getByLabel("Language")).toHaveAttribute(
+    "data-value",
+    "python",
+  );
+  await expect(page.getByLabel("Client")).toHaveAttribute(
+    "data-value",
+    "aiohttp",
+  );
   await expect(page.getByLabel("Converted output")).toHaveValue(
     /aiohttp\.ClientSession/u,
   );
@@ -383,7 +402,7 @@ test("masks inspector secrets while preserving source and generated output", asy
   await expect(inspector).not.toContainText("header-secret");
   await expect(inspector).toContainText("••••••••");
   await expect(page.getByLabel("cURL command")).toHaveValue(/super-secret/u);
-  await page.getByLabel("Client").selectOption("axios");
+  await chooseTarget(page, "Client", "Axios");
   await expect(page.getByLabel("Converted output")).toHaveValue(
     /super-secret/u,
   );
