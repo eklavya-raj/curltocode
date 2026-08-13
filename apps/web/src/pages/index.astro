@@ -65,7 +65,18 @@ const featureList = [
         requests and credentials never leave your browser.
       </p>
     </header>
-    <Converter client:load />
+    <noscript>
+      <p class="noscript-note">
+        The converter needs JavaScript. The example below is real output, but
+        editing it requires scripts to be enabled — nothing is sent to a server
+        either way.
+      </p>
+    </noscript>
+    {
+      /* `idle` rather than `load`: the island is statically rendered with a
+        correct default conversion, so hydration need not block first paint. */
+    }
+    <Converter client:idle />
   </div>
 
   <section class="content-section">

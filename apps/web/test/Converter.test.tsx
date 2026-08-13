@@ -16,6 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Converter from "../src/components/Converter";
 
 const writeText = vi.fn<(value: string) => Promise<void>>();
+const readText = vi.fn<() => Promise<string>>();
 const valueOf = (label: string): string =>
   (screen.getByLabelText(label) as HTMLTextAreaElement).value;
 type User = ReturnType<typeof userEvent.setup>;
@@ -40,9 +41,10 @@ async function chooseTarget(
 
 beforeEach(() => {
   writeText.mockResolvedValue(undefined);
+  readText.mockResolvedValue("");
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
-    value: { writeText },
+    value: { writeText, readText },
   });
   window.localStorage.clear();
   document.documentElement.removeAttribute("data-theme");
@@ -243,6 +245,64 @@ describe("Converter", () => {
       ),
     ).toBeVisible();
     expect(valueOf("Converted output")).toContain("fetch");
+  });
+
+  it("confirms a copy on the button itself, not only in the status line", async () => {
+    const user = userEvent.setup();
+    render(<Converter />);
+    const copy = await screen.findByRole("button", { name: "Copy" });
+    expect(copy).not.toHaveAttribute("data-copied");
+    await user.click(copy);
+    const copied = await screen.findByRole("button", { name: "Copied" });
+    expect(copied).toHaveAttribute("data-copied", "true");
+  });
+
+  // userEvent.setup() installs its own navigator.clipboard stub, so these spy
+  // on the clipboard after setup rather than on the module-level mocks.
+  it("copies with Ctrl+Enter without needing the button", async () => {
+    const user = userEvent.setup();
+    const write = vi.spyOn(navigator.clipboard, "writeText");
+    render(<Converter />);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Copy" })).toBeEnabled(),
+    );
+    expect(write).not.toHaveBeenCalled();
+    await user.keyboard("{Control>}{Enter}{/Control}");
+    await waitFor(() => expect(write).toHaveBeenCalledTimes(1));
+    expect(write.mock.calls[0]?.[0]).toContain("fetch");
+  });
+
+  it("pastes the clipboard into the input and converts it", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(navigator.clipboard, "readText").mockResolvedValue(
+      "curl 'https://api.example.com/pasted'",
+    );
+    render(<Converter />);
+    await user.click(await screen.findByRole("button", { name: "Paste" }));
+    await waitFor(() =>
+      expect(valueOf("cURL command")).toBe(
+        "curl 'https://api.example.com/pasted'",
+      ),
+    );
+    expect(valueOf("Converted output")).toContain(
+      "https://api.example.com/pasted",
+    );
+  });
+
+  it("reports a refused clipboard read instead of silently doing nothing", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(navigator.clipboard, "readText").mockRejectedValue(
+      new Error("denied"),
+    );
+    render(<Converter />);
+    const before = valueOf("cURL command");
+    await user.click(await screen.findByRole("button", { name: "Paste" }));
+    expect(
+      await screen.findByText(
+        "Clipboard access was denied. Paste with your keyboard instead.",
+      ),
+    ).toBeVisible();
+    expect(valueOf("cURL command")).toBe(before);
   });
 
   it("visually masks secrets without mutating converter input or generated output", async () => {

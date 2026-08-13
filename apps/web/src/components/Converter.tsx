@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type {
   GeneratorClient as Client,
@@ -104,6 +104,8 @@ export default function Converter({
   initialClient = "fetch",
 }: ConverterProps) {
   const rootRef = useRef<HTMLElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const outputRef = useRef<HTMLTextAreaElement>(null);
   const initialClients = clientsForLanguage(initialLanguage);
   const safeInitialClient = initialClients.includes(initialClient)
     ? initialClient
@@ -120,6 +122,7 @@ export default function Converter({
     status: "",
   });
   const [feedback, setFeedback] = useState("");
+  const [copied, setCopied] = useState(false);
 
   const availableClients = useMemo(
     () => clientsForLanguage(language),
@@ -137,6 +140,30 @@ export default function Converter({
   useEffect(() => {
     rootRef.current?.setAttribute("data-ready", "true");
   }, []);
+
+  // Only the input pane is resizable; mirroring its height onto the read-only
+  // output keeps the two columns aligned and cannot feed back into itself.
+  useEffect(() => {
+    const source = inputRef.current;
+    const target = outputRef.current;
+    if (source === null || target === null) return;
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      target.style.height = `${source.offsetHeight}px`;
+    });
+    observer.observe(source);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!copied) return;
+    const timer = window.setTimeout(() => setCopied(false), 2000);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [copied]);
 
   const forwardState = useMemo<ConversionState>(() => {
     if (mode !== "curl-to-code" || input.length === 0) {
@@ -256,6 +283,7 @@ export default function Converter({
     setMode(nextMode);
     setInput(nextMode === "curl-to-code" ? DEFAULT_CURL : DEFAULT_CODE);
     setFeedback("");
+    setCopied(false);
   };
 
   const changeLanguage = (nextLanguage: Language): void => {
@@ -264,17 +292,51 @@ export default function Converter({
     if (firstClient !== undefined) setClient(firstClient);
   };
 
-  const copyOutput = async (): Promise<void> => {
+  const copyOutput = useCallback(async (): Promise<void> => {
     if (output.length === 0) return;
     try {
       await navigator.clipboard.writeText(output);
       setFeedback("Copied output to clipboard.");
+      setCopied(true);
     } catch {
       setFeedback(
         "Clipboard access failed. Select the output and copy it manually.",
       );
     }
+  }, [output]);
+
+  /**
+   * Reading the clipboard is the awkward step on a phone, where selecting a
+   * long command by hand is unpleasant. Permission may be refused, so failure
+   * is reported rather than assumed away.
+   */
+  const pasteInput = async (): Promise<void> => {
+    try {
+      const text = await navigator.clipboard.readText();
+      setInput(text);
+      setFeedback("");
+      setCopied(false);
+    } catch {
+      setFeedback(
+        "Clipboard access was denied. Paste with your keyboard instead.",
+      );
+    }
   };
+
+  // Ctrl/Cmd+Enter copies the output. Ctrl/Cmd+Shift+C is unavailable because
+  // browsers bind it to developer tools.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== "Enter") return;
+      if (!event.metaKey && !event.ctrlKey) return;
+      event.preventDefault();
+      void copyOutput();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [copyOutput]);
 
   return (
     <section
@@ -336,17 +398,27 @@ export default function Converter({
             <div className="pane-title">
               {mode === "curl-to-code" ? "cURL input" : "Code input"}
             </div>
-            <button
-              className="action-button"
-              type="button"
-              onClick={() => {
-                setInput("");
-                setFeedback("");
-              }}
-              disabled={input.length === 0}
-            >
-              Clear
-            </button>
+            <div className="pane-actions">
+              <button
+                className="action-button"
+                type="button"
+                onClick={() => void pasteInput()}
+              >
+                Paste
+              </button>
+              <button
+                className="action-button"
+                type="button"
+                onClick={() => {
+                  setInput("");
+                  setFeedback("");
+                  setCopied(false);
+                }}
+                disabled={input.length === 0}
+              >
+                Clear
+              </button>
+            </div>
           </div>
           <label className="sr-only" htmlFor="converter-input">
             {mode === "curl-to-code"
@@ -355,6 +427,7 @@ export default function Converter({
           </label>
           <textarea
             id="converter-input"
+            ref={inputRef}
             className="editor"
             value={input}
             spellCheck={false}
@@ -362,6 +435,7 @@ export default function Converter({
             onChange={(event) => {
               setInput(event.target.value);
               setFeedback("");
+              setCopied(false);
             }}
           />
         </div>
@@ -373,10 +447,12 @@ export default function Converter({
             <button
               className="action-button"
               type="button"
+              data-copied={copied ? "true" : undefined}
+              title="Copy output (Ctrl+Enter)"
               onClick={() => void copyOutput()}
               disabled={output.length === 0}
             >
-              Copy
+              {copied ? "Copied" : "Copy"}
             </button>
           </div>
           <label className="sr-only" htmlFor="converter-output">
@@ -384,6 +460,7 @@ export default function Converter({
           </label>
           <textarea
             id="converter-output"
+            ref={outputRef}
             className="editor"
             value={output}
             readOnly

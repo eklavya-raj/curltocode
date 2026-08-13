@@ -24,6 +24,13 @@ const description =
   title={title}
   description={description}
   breadcrumbs={[{ name: "Converters", path: "/converters" }]}
+  itemList={converters
+    .slice()
+    .sort((a, b) => a.data.order - b.data.order)
+    .map((entry) => ({
+      name: entry.data.heading,
+      path: `/${entry.data.slug}`,
+    }))}
 >
   <div class="shell">
     <nav class="breadcrumbs" aria-label="Breadcrumb">

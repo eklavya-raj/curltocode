@@ -3,7 +3,11 @@ import { getCollection } from "astro:content";
 
 import StructuredData from "../components/StructuredData.astro";
 import ThemeToggle from "../components/ThemeToggle.astro";
-import type { BreadcrumbEntry, FaqEntry } from "../lib/structured-data.js";
+import type {
+  BreadcrumbEntry,
+  FaqEntry,
+  ItemListEntry,
+} from "../lib/structured-data.js";
 import { buildStructuredData } from "../lib/structured-data.js";
 import {
   SITE_LANGUAGE,
@@ -23,6 +27,7 @@ interface Props {
   breadcrumbs?: readonly BreadcrumbEntry[];
   faqs?: readonly FaqEntry[];
   featureList?: readonly string[];
+  itemList?: readonly ItemListEntry[];
 }
 
 const {
@@ -33,6 +38,7 @@ const {
   breadcrumbs,
   faqs,
   featureList,
+  itemList,
 } = Astro.props;
 
 // Footer navigation is derived from the collection so a new converter page is
@@ -77,6 +83,7 @@ const structuredData = buildStructuredData({
   breadcrumbs,
   faqs,
   featureList,
+  itemList,
 });
 ---
 
