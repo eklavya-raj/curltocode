@@ -487,6 +487,7 @@ describe("Converter", () => {
   });
 
   it("visually masks secrets without mutating converter input or generated output", async () => {
+    const user = userEvent.setup();
     render(<Converter />);
     await waitFor(() =>
       expect(screen.getByText("Request inspector")).toBeInTheDocument(),
@@ -499,6 +500,30 @@ describe("Converter", () => {
       expect(
         within(inspector as HTMLElement).getByText("••••••••"),
       ).toBeInTheDocument();
+      expect(
+        within(inspector as HTMLElement).queryByText("your-token"),
+      ).not.toBeInTheDocument();
+      expect(
+        within(inspector as HTMLElement).getByText("Sensitive value hidden"),
+      ).toBeVisible();
+
+      const reveal = within(inspector as HTMLElement).getByRole("button", {
+        name: "Reveal",
+      });
+      expect(reveal).toHaveAttribute("aria-pressed", "false");
+      await user.click(reveal);
+
+      expect(
+        within(inspector as HTMLElement).getByText("Sensitive value visible"),
+      ).toBeVisible();
+      expect(
+        within(inspector as HTMLElement).getByText("your-token"),
+      ).toBeVisible();
+      const hide = within(inspector as HTMLElement).getByRole("button", {
+        name: "Hide",
+      });
+      expect(hide).toHaveAttribute("aria-pressed", "true");
+      await user.click(hide);
       expect(
         within(inspector as HTMLElement).queryByText("your-token"),
       ).not.toBeInTheDocument();
@@ -562,6 +587,35 @@ describe("Converter", () => {
     expect(valueOf("cURL command")).toContain("super-secret");
     await chooseTarget(user, "Client", "axios");
     expect(valueOf("Converted output")).toContain("super-secret");
+  });
+
+  it("returns to masked values when the parsed request changes", async () => {
+    const user = userEvent.setup();
+    render(<Converter />);
+    const input = screen.getByLabelText("cURL command");
+    const inspectorTitle = await screen.findByText("Request inspector");
+    const inspector = inspectorTitle.closest(".inspector");
+    expect(inspector).not.toBeNull();
+    if (inspector === null) return;
+
+    await user.click(
+      within(inspector as HTMLElement).getByRole("button", { name: "Reveal" }),
+    );
+    expect(inspector).toHaveTextContent("your-token");
+
+    await user.clear(input);
+    await user.type(
+      input,
+      "curl https://example.com -H 'Authorization: Bearer replacement-token'",
+    );
+
+    await screen.findByText("Sensitive value hidden");
+    const updatedInspector = screen
+      .getByText("Request inspector")
+      .closest(".inspector");
+    expect(updatedInspector).not.toBeNull();
+    expect(updatedInspector).not.toHaveTextContent("replacement-token");
+    expect(updatedInspector).toHaveTextContent("••••••••");
   });
 
   it("never performs represented network requests", async () => {

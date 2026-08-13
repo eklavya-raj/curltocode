@@ -140,6 +140,30 @@ a {
 .nav-links a:hover {
   color: var(--ink);
 }
+.github-star {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  padding: 0 11px;
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+.github-star:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.github-star-icon {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
 .nav-toggle {
   display: none;
   width: 38px;
@@ -571,9 +595,36 @@ h1 {
   border-top: 1px solid var(--line);
   padding: 18px;
 }
+.inspector-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin-bottom: 14px;
+}
 .inspector h3 {
-  margin: 0 0 14px;
+  margin: 0;
   font-size: 1rem;
+}
+.sensitive-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.sensitive-toggle {
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  padding: 4px 8px;
+  color: var(--ink);
+  font: 700 0.72rem/1.2 var(--font-sans);
+}
+.sensitive-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 .request-line {
   display: flex;
@@ -987,6 +1038,17 @@ h1 {
     padding-top: 42px;
   }
   .nav-links {
+    display: none;
+  }
+  .nav-actions {
+    gap: 8px;
+  }
+  .github-star {
+    width: 38px;
+    justify-content: center;
+    padding-inline: 0;
+  }
+  .github-star span {
     display: none;
   }
   .nav-toggle {

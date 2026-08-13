@@ -501,6 +501,29 @@ test("serves both favicon formats, including the conventional /favicon.ico", asy
   expect(body.readUInt16LE(4)).toBeGreaterThanOrEqual(3);
 });
 
+test("offers an accessible GitHub star link without loading GitHub", async ({
+  page,
+}) => {
+  const githubRequests: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).hostname === "github.com") {
+      githubRequests.push(request.url());
+    }
+  });
+  await openConverter(page);
+
+  const star = page.getByRole("link", {
+    name: "Star CurlToCode on GitHub (opens in a new tab)",
+  });
+  await expect(star).toBeVisible();
+  await expect(star).toHaveAttribute(
+    "href",
+    "https://github.com/eklavya-raj/curltocode",
+  );
+  await expect(star).toHaveAttribute("target", "_blank");
+  expect(githubRequests).toEqual([]);
+});
+
 test("persists theme preference and keeps keyboard focus visible", async ({
   page,
 }) => {
@@ -558,6 +581,14 @@ test("masks inspector secrets while preserving source and generated output", asy
   await expect(inspector).not.toContainText("query-secret");
   await expect(inspector).not.toContainText("header-secret");
   await expect(inspector).toContainText("••••••••");
+  await expect(inspector).toContainText("Sensitive value hidden");
+  await inspector.getByRole("button", { name: "Reveal" }).click();
+  await expect(inspector).toContainText("Sensitive value visible");
+  await expect(inspector).toContainText("super-secret");
+  await expect(inspector).toContainText("query-secret");
+  await expect(inspector).toContainText("header-secret");
+  await inspector.getByRole("button", { name: "Hide" }).click();
+  await expect(inspector).not.toContainText("super-secret");
   await expect(page.getByLabel("cURL command")).toHaveValue(/super-secret/u);
   await chooseTarget(page, "Client", "Axios");
   await expect(page.getByLabel("Converted output")).toHaveValue(

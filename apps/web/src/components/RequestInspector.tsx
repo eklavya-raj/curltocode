@@ -1,8 +1,11 @@
+import { useState } from "react";
+
 import type { HttpRequest } from "curltocode";
 
 import {
   bodyPreview,
   displayRequestUrl,
+  hasSensitiveValues,
   inspectorHeaders,
   isSensitiveName,
   maskSecret,
@@ -13,14 +16,42 @@ export default function RequestInspector({
 }: {
   readonly request: HttpRequest;
 }) {
-  const preview = bodyPreview(request);
+  const [revealedRequest, setRevealedRequest] = useState<HttpRequest>();
+  const sensitiveValuesRevealed = revealedRequest === request;
+  const containsSensitiveValues = hasSensitiveValues(request);
+  const preview = bodyPreview(request, sensitiveValuesRevealed);
   const headers = inspectorHeaders(request);
   return (
     <section className="inspector" aria-labelledby="request-inspector-title">
-      <h3 id="request-inspector-title">Request inspector</h3>
+      <div className="inspector-heading">
+        <h3 id="request-inspector-title">Request inspector</h3>
+        {containsSensitiveValues && (
+          <div className="sensitive-control">
+            <span aria-live="polite">
+              {sensitiveValuesRevealed
+                ? "Sensitive value visible"
+                : "Sensitive value hidden"}
+            </span>
+            <button
+              className="sensitive-toggle"
+              type="button"
+              aria-pressed={sensitiveValuesRevealed}
+              onClick={() =>
+                setRevealedRequest(
+                  sensitiveValuesRevealed ? undefined : request,
+                )
+              }
+            >
+              {sensitiveValuesRevealed ? "Hide" : "Reveal"}
+            </button>
+          </div>
+        )}
+      </div>
       <div className="request-line">
         <span className="method">{request.method}</span>
-        <span className="request-url">{displayRequestUrl(request.url)}</span>
+        <span className="request-url">
+          {displayRequestUrl(request.url, sensitiveValuesRevealed)}
+        </span>
       </div>
       <div className="inspector-grid">
         <section className="inspector-section">
@@ -33,7 +64,7 @@ export default function RequestInspector({
                 <div className="inspector-row" key={`${header.name}-${index}`}>
                   <dt>{header.name}</dt>
                   <dd>
-                    {isSensitiveName(header.name)
+                    {!sensitiveValuesRevealed && isSensitiveName(header.name)
                       ? maskSecret(header.value)
                       : header.value}
                   </dd>
@@ -55,7 +86,7 @@ export default function RequestInspector({
                 >
                   <dt>{parameter.name}</dt>
                   <dd>
-                    {isSensitiveName(parameter.name)
+                    {!sensitiveValuesRevealed && isSensitiveName(parameter.name)
                       ? maskSecret(parameter.value)
                       : parameter.value}
                   </dd>
@@ -76,18 +107,26 @@ export default function RequestInspector({
                     {request.auth.kind === "basic" ? "Basic auth" : "Bearer"}
                   </dt>
                   <dd>
-                    {maskSecret(
-                      request.auth.kind === "basic"
+                    {sensitiveValuesRevealed
+                      ? request.auth.kind === "basic"
                         ? request.auth.password
-                        : request.auth.token,
-                    )}
+                        : request.auth.token
+                      : maskSecret(
+                          request.auth.kind === "basic"
+                            ? request.auth.password
+                            : request.auth.token,
+                        )}
                   </dd>
                 </div>
               )}
               {request.cookies.map((cookie, index) => (
                 <div className="inspector-row" key={`${cookie.name}-${index}`}>
                   <dt>{cookie.name}</dt>
-                  <dd>{maskSecret(cookie.value)}</dd>
+                  <dd>
+                    {sensitiveValuesRevealed
+                      ? cookie.value
+                      : maskSecret(cookie.value)}
+                  </dd>
                 </div>
               ))}
             </dl>
