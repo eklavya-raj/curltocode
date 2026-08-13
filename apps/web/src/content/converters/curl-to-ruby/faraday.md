@@ -20,6 +20,7 @@ faqs:
     answer: Its ordinary request interface uses a header hash, so duplicate names cannot be represented safely. The generator reports that limitation instead of selecting one value.
 related:
   - curl-to-ruby
+  - curl-to-ruby/nethttp
   - curl-to-php/guzzle
   - curl-to-python/httpx
 ---

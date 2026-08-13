@@ -396,6 +396,9 @@ test("every indexable page renders canonical metadata and structured data", asyn
 }) => {
   const titles = new Set<string>();
   const descriptions = new Set<string>();
+  const incomingInternalLinks = new Map(
+    indexablePages.map(([path]) => [path, new Set<string>()]),
+  );
   for (const [path, heading] of indexablePages) {
     await page.goto(path);
     const title = await page.title();
@@ -409,6 +412,17 @@ test("every indexable page renders canonical metadata and structured data", asyn
     expect(descriptions.has(description)).toBe(false);
     titles.add(title);
     descriptions.add(description);
+    if (path === "/") {
+      expect(title).toBe(
+        "cURL to Code Converter – Python & JavaScript | CurlToCode",
+      );
+      await expect(
+        page.getByRole("heading", {
+          level: 2,
+          name: "Convert cURL to Python, JavaScript, and more",
+        }),
+      ).toBeVisible();
+    }
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(heading);
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
       "href",
@@ -442,7 +456,10 @@ test("every indexable page renders canonical metadata and structured data", asyn
       }[];
     };
     const pageTypes = parsed["@graph"].map((entry) => entry["@type"]);
+    expect(pageTypes).toContain("Organization");
+    expect(pageTypes).toContain("WebSite");
     expect(pageTypes).toContain("WebPage");
+    expect(pageTypes).not.toContain("SoftwareApplication");
     if (path !== "/") {
       const breadcrumb = parsed["@graph"].find(
         (entry) => entry["@type"] === "BreadcrumbList",
@@ -452,6 +469,31 @@ test("every indexable page renders canonical metadata and structured data", asyn
         position: 1,
       });
     }
+
+    const internalTargets = await page
+      .locator('a[href^="/"]')
+      .evaluateAll((links) => [
+        ...new Set(
+          links.map((link) => {
+            const url = new URL((link as HTMLAnchorElement).href);
+            return url.pathname === "/"
+              ? "/"
+              : url.pathname.replace(/\/$/u, "");
+          }),
+        ),
+      ]);
+    for (const target of internalTargets) {
+      if (target === path) continue;
+      incomingInternalLinks.get(target)?.add(path);
+    }
+  }
+
+  for (const [path, sources] of incomingInternalLinks) {
+    if (path === "/") continue;
+    expect(
+      sources.size,
+      `${path} should have at least two incoming links`,
+    ).toBeGreaterThanOrEqual(2);
   }
 });
 

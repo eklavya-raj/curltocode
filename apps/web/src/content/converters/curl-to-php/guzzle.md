@@ -20,6 +20,7 @@ faqs:
     answer: No. It uses the body request option with the original JSON string. The json option is intentionally avoided because it would serialize the value again and could change meaningful bytes.
 related:
   - curl-to-php
+  - curl-to-php/curl
   - curl-to-python/requests
   - curl-to-ruby/faraday
 ---

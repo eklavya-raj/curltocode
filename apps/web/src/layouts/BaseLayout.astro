@@ -26,7 +26,6 @@ interface Props {
   ogImage?: string;
   breadcrumbs?: readonly BreadcrumbEntry[];
   faqs?: readonly FaqEntry[];
-  featureList?: readonly string[];
   itemList?: readonly ItemListEntry[];
 }
 
@@ -37,7 +36,6 @@ const {
   ogImage = "/og/default.png",
   breadcrumbs,
   faqs,
-  featureList,
   itemList,
 } = Astro.props;
 
@@ -97,7 +95,6 @@ const structuredData = buildStructuredData({
   description,
   breadcrumbs,
   faqs,
-  featureList,
   itemList,
 });
 ---
@@ -174,8 +171,8 @@ const structuredData = buildStructuredData({
         >
         <div class="nav-actions">
           <div class="nav-links">
-            <a href="/curl-to-python">Python</a>
-            <a href="/curl-to-javascript">JavaScript</a>
+            <a href="/curl-to-python">cURL to Python</a>
+            <a href="/curl-to-javascript">cURL to JavaScript</a>
             <a href="/javascript-to-curl">Code → cURL</a>
             <a href="/converters">All converters</a>
           </div>

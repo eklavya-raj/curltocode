@@ -34,14 +34,12 @@ export interface StructuredDataInput {
   // exactOptionalPropertyTypes and callers forward optional Astro props.
   readonly breadcrumbs?: readonly BreadcrumbEntry[] | undefined;
   readonly faqs?: readonly FaqEntry[] | undefined;
-  readonly featureList?: readonly string[] | undefined;
   /** Ordered page listing, for index pages that enumerate other routes. */
   readonly itemList?: readonly ItemListEntry[] | undefined;
 }
 
 const WEBSITE_ID = `${SITE_URL}/#website`;
 const ORGANIZATION_ID = `${SITE_URL}/#organization`;
-const APPLICATION_ID = `${SITE_URL}/#application`;
 
 function organization(): Record<string, unknown> {
   return {
@@ -70,28 +68,6 @@ function webSite(): Record<string, unknown> {
   };
 }
 
-function softwareApplication(
-  input: StructuredDataInput,
-): Record<string, unknown> {
-  return {
-    "@type": "SoftwareApplication",
-    "@id": APPLICATION_ID,
-    name: SITE_NAME,
-    url: SITE_URL,
-    applicationCategory: "DeveloperApplication",
-    applicationSubCategory: "HTTP request converter",
-    operatingSystem: "Any modern web browser",
-    description: SITE_DESCRIPTION,
-    isAccessibleForFree: true,
-    browserRequirements: "Requires JavaScript for interactive conversion.",
-    publisher: { "@id": ORGANIZATION_ID },
-    offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
-    ...(input.featureList === undefined
-      ? {}
-      : { featureList: [...input.featureList] }),
-  };
-}
-
 function webPage(input: StructuredDataInput): Record<string, unknown> {
   return {
     "@type": "WebPage",
@@ -100,7 +76,6 @@ function webPage(input: StructuredDataInput): Record<string, unknown> {
     name: input.title,
     description: input.description,
     isPartOf: { "@id": WEBSITE_ID },
-    about: { "@id": APPLICATION_ID },
     inLanguage: "en",
     ...(input.breadcrumbs === undefined || input.breadcrumbs.length === 0
       ? {}
@@ -167,7 +142,7 @@ function itemList(
 
 /**
  * Build a single `@graph` document so page entities can reference the shared
- * site, organization, and application nodes by `@id` instead of repeating them.
+ * site and organization nodes by `@id` instead of repeating them.
  */
 export function buildStructuredData(
   input: StructuredDataInput,
@@ -175,7 +150,6 @@ export function buildStructuredData(
   const graph: Record<string, unknown>[] = [
     organization(),
     webSite(),
-    softwareApplication(input),
     webPage(input),
   ];
   if (input.breadcrumbs !== undefined && input.breadcrumbs.length > 0)

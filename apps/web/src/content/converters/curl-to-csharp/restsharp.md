@@ -20,6 +20,7 @@ faqs:
     answer: RestSharp exposes a fixed Method enum. The converter supports its defined methods and reports an explicit limitation for values such as PURGE instead of substituting a different verb.
 related:
   - curl-to-csharp
+  - curl-to-csharp/httpclient
   - curl-to-java/apache-httpclient
   - curl-to-typescript
 ---

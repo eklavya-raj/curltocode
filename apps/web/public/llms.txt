@@ -1,0 +1,29 @@
+# CurlToCode
+
+> CurlToCode is a private, browser-based HTTP request converter for cURL and source code. Conversion is static and entirely client-side: the site never executes, uploads, or sends the requests users paste.
+
+## Main pages
+
+- [Converter](https://curltocode.com/): Convert cURL to supported languages and libraries, or statically parse supported source code back to cURL.
+- [All converters](https://curltocode.com/converters): Browse every supported forward generator and reverse parser.
+- [About CurlToCode](https://curltocode.com/about): Product architecture, privacy model, and project scope.
+
+## Primary cURL generators
+
+- [cURL to Python](https://curltocode.com/curl-to-python): Requests, HTTPX, and aiohttp.
+- [cURL to JavaScript](https://curltocode.com/curl-to-javascript): Fetch, Axios, and Undici.
+- [cURL to TypeScript](https://curltocode.com/curl-to-typescript): Typed Fetch, Axios, and Undici output.
+- [cURL to Go](https://curltocode.com/curl-to-go): net/http and Resty.
+- [cURL to Rust](https://curltocode.com/curl-to-rust): reqwest and ureq.
+- [cURL to Java](https://curltocode.com/curl-to-java): JDK HttpClient, OkHttp, and Apache HttpClient.
+
+## Reverse parsers
+
+- [JavaScript to cURL](https://curltocode.com/javascript-to-curl): Static Fetch and Axios parsing without code execution.
+- [TypeScript to cURL](https://curltocode.com/typescript-to-curl): Static Fetch and Axios parsing without code execution.
+- [Python to cURL](https://curltocode.com/python-to-curl): Static Requests, HTTPX, and aiohttp parsing without code execution.
+
+## Policies
+
+- [Privacy Policy](https://curltocode.com/privacy): How hosting and advertising data are handled; converter content is excluded.
+- [Terms of Service](https://curltocode.com/terms): Usage terms and generated-code limitations.

@@ -52,14 +52,6 @@ const breadcrumbs: BreadcrumbEntry[] = [
 const related = data.related
   .map((slug) => all.find((candidate) => candidate.data.slug === slug))
   .filter((candidate) => candidate !== undefined);
-
-const featureList = [
-  data.direction === "code-to-curl"
-    ? `${data.languageLabel} ${data.clientLabel} to cURL`
-    : `cURL to ${data.languageLabel} ${data.clientLabel}`,
-  "Local, in-browser conversion",
-  "Headers, cookies, authentication, and request bodies",
-];
 ---
 
 <BaseLayout
@@ -68,7 +60,6 @@ const featureList = [
   ogImage={`/og/${data.slug.replace("/", "-")}.png`}
   breadcrumbs={breadcrumbs}
   faqs={data.faqs}
-  featureList={featureList}
 >
   <div class="shell">
     <nav class="breadcrumbs" aria-label="Breadcrumb">
@@ -116,7 +107,7 @@ const featureList = [
     />
   </div>
 
-  <section class="content-section">
+  <article class="content-section">
     <div class="shell">
       <ExampleList
         examples={examples}
@@ -129,5 +120,5 @@ const featureList = [
       <FaqList faqs={data.faqs} />
       <RelatedConverters entries={related} />
     </div>
-  </section>
+  </article>
 </BaseLayout>

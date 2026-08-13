@@ -37,10 +37,34 @@ describe("Cloudflare Workers Static Assets deployment", () => {
 
     expect(headers).toContain("X-Frame-Options: DENY");
     expect(headers).toContain("X-Content-Type-Options: nosniff");
+    expect(headers).toContain("Strict-Transport-Security: max-age=31536000");
     expect(headers).toContain(
       "Referrer-Policy: strict-origin-when-cross-origin",
     );
     expect(headers).toContain("/_astro/*");
     expect(headers).toContain("max-age=31536000, immutable");
+  });
+
+  it("publishes a standards-compatible robots policy and canonical sitemap", () => {
+    const robots = readFileSync(
+      resolve(workspaceRoot, "apps/web/public/robots.txt"),
+      "utf8",
+    );
+
+    expect(robots).toBe(
+      "User-agent: *\nDisallow:\n\nSitemap: https://curltocode.com/sitemap-index.xml\n",
+    );
+  });
+
+  it("publishes an accurate machine-readable site guide", () => {
+    const llms = readFileSync(
+      resolve(workspaceRoot, "apps/web/public/llms.txt"),
+      "utf8",
+    );
+
+    expect(llms).toContain("# CurlToCode");
+    expect(llms).toContain("entirely client-side");
+    expect(llms).toContain("https://curltocode.com/converters");
+    expect(llms).not.toContain("API key");
   });
 });
