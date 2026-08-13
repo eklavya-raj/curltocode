@@ -90,7 +90,7 @@ test("converts a static Fetch call back to cURL", async ({ page }) => {
   await openConverter(page);
   await page.getByRole("button", { name: "Code → cURL" }).click();
   await page
-    .getByLabel("JavaScript, TypeScript, or Axios request code")
+    .getByLabel("JavaScript, TypeScript, or Python request code")
     .fill(
       `fetch("https://api.example.com/users", { method: "DELETE", redirect: "manual" });`,
     );
@@ -104,7 +104,7 @@ test("reports dynamic Fetch expressions explicitly", async ({ page }) => {
   await openConverter(page);
   await page.getByRole("button", { name: "Code → cURL" }).click();
   await page
-    .getByLabel("JavaScript, TypeScript, or Axios request code")
+    .getByLabel("JavaScript, TypeScript, or Python request code")
     .fill("fetch(getApiUrl(), { headers: getHeaders() });");
   await expect(page.getByRole("alert")).toContainText(
     "Dynamic URL cannot be resolved statically",
@@ -161,7 +161,7 @@ test("converts a static Axios call and loads its AST parser on demand", async ({
   );
   await page.getByRole("button", { name: "Code → cURL" }).click();
   await page
-    .getByLabel("JavaScript, TypeScript, or Axios request code")
+    .getByLabel("JavaScript, TypeScript, or Python request code")
     .fill(
       `axios.post("https://api.example.com/users", { name: "Ada" }, { headers: { "X-Key": "local" } });`,
     );

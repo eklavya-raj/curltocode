@@ -205,7 +205,7 @@ describe("Converter", () => {
     );
     await user.click(screen.getByRole("button", { name: "Code → cURL" }));
     const codeInput = screen.getByLabelText(
-      "JavaScript, TypeScript, or Axios request code",
+      "JavaScript, TypeScript, or Python request code",
     );
     fireEvent.change(codeInput, {
       target: { value: "fetch(getApiUrl(), { headers: getHeaders() });" },

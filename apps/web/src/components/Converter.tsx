@@ -6,6 +6,7 @@ import type {
   HttpRequest,
 } from "curltocode";
 import {
+  REVERSE_CLIENT_LABELS,
   generateDetailed,
   parseCode,
   parseCurlDetailed,
@@ -244,7 +245,7 @@ export default function Converter({
           output: requestToCurl(parsed.request),
           error: "",
           warning: "",
-          status: `Detected ${parsed.client === "fetch" ? "Fetch" : "Axios"}.`,
+          status: `Detected ${REVERSE_CLIENT_LABELS[parsed.client]}.`,
         });
       } catch (conversionError) {
         if (cancelled) return;
@@ -423,7 +424,7 @@ export default function Converter({
           <label className="sr-only" htmlFor="converter-input">
             {mode === "curl-to-code"
               ? "cURL command"
-              : "JavaScript, TypeScript, or Axios request code"}
+              : "JavaScript, TypeScript, or Python request code"}
           </label>
           <textarea
             id="converter-input"

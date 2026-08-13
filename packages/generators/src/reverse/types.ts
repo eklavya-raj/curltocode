@@ -8,6 +8,25 @@ import type {
 
 export type DynamicIssueKind = "url" | "method" | "headers" | "body" | "config";
 
+/** Source languages the reverse parsers can read. */
+export type ReverseLanguage = "javascript" | "python";
+
+/**
+ * Clients the reverse parsers can recognise. This is a subset of the forward
+ * registry: a target only appears once a parser exists that can read it back.
+ */
+export type ReverseClient =
+  "fetch" | "axios" | "requests" | "httpx" | "aiohttp";
+
+/** Human-readable name, used when reporting what was detected. */
+export const REVERSE_CLIENT_LABELS: Record<ReverseClient, string> = {
+  fetch: "Fetch",
+  axios: "Axios",
+  requests: "Requests",
+  httpx: "HTTPX",
+  aiohttp: "aiohttp",
+};
+
 export interface DynamicIssue {
   readonly kind: DynamicIssueKind;
   readonly expression: string;
@@ -15,7 +34,7 @@ export interface DynamicIssue {
 }
 
 export interface StaticRequestDetails {
-  readonly client: "fetch" | "axios";
+  readonly client: ReverseClient;
   readonly method?: string;
   readonly url?: string;
   readonly headers?: readonly Header[];
@@ -55,5 +74,5 @@ export class DynamicExpressionError extends Error {
 
 export interface ReverseParseResult {
   readonly request: HttpRequest;
-  readonly client: "fetch" | "axios";
+  readonly client: ReverseClient;
 }

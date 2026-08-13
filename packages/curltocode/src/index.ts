@@ -6,6 +6,7 @@ import type {
   GeneratorId,
   GeneratorLanguage,
   GeneratorTarget,
+  ReverseLanguage,
   ReverseParseResult,
 } from "@curltocode/generators";
 import {
@@ -66,10 +67,12 @@ export function convert(input: string, options: ConvertOptions): string {
   return generateCode(parseCurl(input), options);
 }
 
-export async function parseCode(input: string): Promise<ReverseParseResult> {
-  const { parseJavaScriptRequest } =
-    await import("@curltocode/generators/reverse");
-  return parseJavaScriptRequest(input);
+export async function parseCode(
+  input: string,
+  language?: ReverseLanguage,
+): Promise<ReverseParseResult> {
+  const { parseCodeRequest } = await import("@curltocode/generators/reverse");
+  return parseCodeRequest(input, language);
 }
 
 export async function codeToCurl(input: string): Promise<string> {
@@ -102,6 +105,7 @@ export {
   CodeParseError,
   DynamicExpressionError,
   GeneratorError,
+  REVERSE_CLIENT_LABELS,
 } from "@curltocode/generators";
 export type {
   DynamicIssue,
@@ -111,6 +115,8 @@ export type {
   GeneratorErrorCode,
   GeneratorLanguage,
   GeneratorTarget,
+  ReverseClient,
+  ReverseLanguage,
   ReverseParseResult,
   StaticRequestDetails,
 } from "@curltocode/generators";
