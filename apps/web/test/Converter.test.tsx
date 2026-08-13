@@ -313,7 +313,7 @@ describe("Converter", () => {
     expect(valueOf("cURL command")).toBe(before);
   });
 
-  it("offers a source language selector only in reverse mode", async () => {
+  it("offers auto-detection only in homepage reverse mode", async () => {
     const user = userEvent.setup();
     render(<Converter />);
     expect(screen.queryByRole("combobox", { name: "Source" })).toBeNull();
@@ -324,9 +324,87 @@ describe("Converter", () => {
       "data-value",
       "auto",
     );
-    // The forward target selectors have no meaning when reading code back.
+    // The homepage has no route-specific target, so detection owns the input.
     expect(screen.queryByRole("combobox", { name: "Language" })).toBeNull();
     expect(screen.queryByRole("combobox", { name: "Client" })).toBeNull();
+  });
+
+  it("keeps an SEO page's language and client in reverse mode", async () => {
+    const user = userEvent.setup();
+    render(
+      <Converter
+        initialLanguage="python"
+        initialClient="httpx"
+        reverseStrategy="selected-target"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Code → cURL" }));
+
+    expect(screen.queryByRole("combobox", { name: "Source" })).toBeNull();
+    expect(screen.getByRole("combobox", { name: "Language" })).toHaveAttribute(
+      "data-value",
+      "python",
+    );
+    expect(screen.getByRole("combobox", { name: "Client" })).toHaveAttribute(
+      "data-value",
+      "httpx",
+    );
+    expect(valueOf("Python HTTPX request code")).toContain("import httpx");
+    await waitFor(() =>
+      expect(valueOf("Converted output")).toContain(
+        "curl 'https://api.example.com/users?page=1'",
+      ),
+    );
+    expect(screen.getByText("Parsed as Python HTTPX.")).toBeVisible();
+  });
+
+  it("reports unsupported SEO reverse targets without auto-detecting", async () => {
+    const user = userEvent.setup();
+    render(
+      <Converter
+        initialLanguage="go"
+        initialClient="resty"
+        reverseStrategy="selected-target"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Code → cURL" }));
+
+    expect(valueOf("Go Resty request code")).toContain("resty.New");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Code → cURL is not supported yet for Go Resty",
+    );
+    expect(screen.getByRole("combobox", { name: "Language" })).toHaveAttribute(
+      "data-value",
+      "go",
+    );
+    expect(screen.getByRole("combobox", { name: "Client" })).toHaveAttribute(
+      "data-value",
+      "resty",
+    );
+  });
+
+  it("refuses code from a different client on a targeted SEO page", async () => {
+    const user = userEvent.setup();
+    render(
+      <Converter
+        initialLanguage="python"
+        initialClient="httpx"
+        reverseStrategy="selected-target"
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Code → cURL" }));
+    fireEvent.change(screen.getByLabelText("Python HTTPX request code"), {
+      target: {
+        value: 'requests.get("https://api.example.com/not-httpx")',
+      },
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Selected Python HTTPX, but the code uses Requests",
+    );
+    expect(valueOf("Converted output")).toBe("");
   });
 
   it("converts Python once the source language is chosen explicitly", async () => {

@@ -8,6 +8,7 @@ import {
   parseCode,
   parseCurl,
   parseCurlDetailed,
+  supportedReverseTargets,
   supportedTargets,
 } from "../src/index.js";
 
@@ -72,6 +73,52 @@ describe("curltocode public API", () => {
       "ruby-faraday",
       "rust-reqwest",
       "rust-ureq",
+    ]);
+  });
+
+  it("exposes reverse-parser capabilities without loading the parsers", () => {
+    expect(
+      supportedReverseTargets.map(({ language, client, parserLanguage }) => ({
+        language,
+        client,
+        parserLanguage,
+      })),
+    ).toEqual([
+      {
+        language: "javascript",
+        client: "fetch",
+        parserLanguage: "javascript",
+      },
+      {
+        language: "javascript",
+        client: "axios",
+        parserLanguage: "javascript",
+      },
+      {
+        language: "typescript",
+        client: "fetch",
+        parserLanguage: "javascript",
+      },
+      {
+        language: "typescript",
+        client: "axios",
+        parserLanguage: "javascript",
+      },
+      {
+        language: "python",
+        client: "requests",
+        parserLanguage: "python",
+      },
+      {
+        language: "python",
+        client: "httpx",
+        parserLanguage: "python",
+      },
+      {
+        language: "python",
+        client: "aiohttp",
+        parserLanguage: "python",
+      },
     ]);
   });
 

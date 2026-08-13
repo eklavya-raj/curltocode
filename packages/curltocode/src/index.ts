@@ -14,6 +14,7 @@ import {
   generateCurl,
   generatorIds,
   generatorTargets,
+  reverseTargets,
 } from "@curltocode/generators";
 
 export interface ConvertOptions {
@@ -23,6 +24,9 @@ export interface ConvertOptions {
 
 /** Registered forward-conversion targets in deterministic display order. */
 export const supportedTargets: readonly GeneratorTarget[] = generatorTargets;
+
+/** Forward targets with a matching static Code → cURL parser. */
+export const supportedReverseTargets = reverseTargets;
 
 function generatorId(options: ConvertOptions): GeneratorId {
   const id = `${options.language}-${options.client}`;
@@ -118,6 +122,8 @@ export type {
   ReverseClient,
   ReverseLanguage,
   ReverseParseResult,
+  ReverseTarget,
+  ReverseTargetLanguage,
   StaticRequestDetails,
 } from "@curltocode/generators";
 export type { ConvertOptions as CurlToCodeOptions };

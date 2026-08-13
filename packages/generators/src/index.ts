@@ -5,6 +5,7 @@ export {
   CodeParseError,
   DynamicExpressionError,
   REVERSE_CLIENT_LABELS,
+  reverseTargets,
 } from "./reverse/types.js";
 export type {
   DynamicIssue,
@@ -12,5 +13,7 @@ export type {
   ReverseClient,
   ReverseLanguage,
   ReverseParseResult,
+  ReverseTarget,
+  ReverseTargetLanguage,
   StaticRequestDetails,
 } from "./reverse/types.js";

@@ -143,6 +143,56 @@ test("reads Python back to cURL and exposes a source language selector", async (
   );
 });
 
+test("SEO pages keep their language and client for Code to cURL", async ({
+  page,
+}) => {
+  await page.goto("/curl-to-python/httpx");
+  await page
+    .locator('[aria-label="cURL and code converter"][data-ready="true"]')
+    .waitFor();
+  await page.getByRole("button", { name: "Code → cURL" }).click();
+
+  await expect(page.getByRole("combobox", { name: "Source" })).toHaveCount(0);
+  await expect(
+    page.getByRole("combobox", { name: "Language" }),
+  ).toHaveAttribute("data-value", "python");
+  await expect(page.getByRole("combobox", { name: "Client" })).toHaveAttribute(
+    "data-value",
+    "httpx",
+  );
+  await expect(page.getByLabel("Python HTTPX request code")).toHaveValue(
+    /import httpx/u,
+  );
+  await expect(page.getByLabel("Converted output")).toHaveValue(
+    /curl 'https:\/\/api\.example\.com\/users\?page=1'/u,
+  );
+  await expect(page.getByText("Parsed as Python HTTPX.")).toBeVisible();
+});
+
+test("SEO pages keep unsupported reverse targets and report the limitation", async ({
+  page,
+}) => {
+  await page.goto("/curl-to-go/resty");
+  await page
+    .locator('[aria-label="cURL and code converter"][data-ready="true"]')
+    .waitFor();
+  await page.getByRole("button", { name: "Code → cURL" }).click();
+
+  await expect(
+    page.getByRole("combobox", { name: "Language" }),
+  ).toHaveAttribute("data-value", "go");
+  await expect(page.getByRole("combobox", { name: "Client" })).toHaveAttribute(
+    "data-value",
+    "resty",
+  );
+  await expect(page.getByLabel("Go Resty request code")).toHaveValue(
+    /resty\.New/u,
+  );
+  await expect(page.getByRole("alert")).toContainText(
+    "Code → cURL is not supported yet for Go Resty",
+  );
+});
+
 test("keeps the converter usable without horizontal overflow on mobile", async ({
   page,
 }) => {
