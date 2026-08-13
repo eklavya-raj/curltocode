@@ -4,7 +4,16 @@ import { getCollection } from "astro:content";
 import BaseLayout from "../layouts/BaseLayout.astro";
 
 const converters = await getCollection("converters");
-const hubs = converters
+const forwardConverters = converters.filter(
+  (entry) => entry.data.direction === "curl-to-code",
+);
+const reverseConverters = converters.filter(
+  (entry) => entry.data.direction === "code-to-curl",
+);
+const forwardHubs = forwardConverters
+  .filter((entry) => entry.data.parent === undefined)
+  .sort((a, b) => a.data.order - b.data.order);
+const reverseHubs = reverseConverters
   .filter((entry) => entry.data.parent === undefined)
   .sort((a, b) => a.data.order - b.data.order);
 
@@ -15,9 +24,15 @@ for (const entry of converters) {
   clientsByParent.set(entry.data.parent, [...existing, entry]);
 }
 
-const title = "All cURL Converters – Every Language | CurlToCode";
+const title = "cURL & Code Conversion Tools | CurlToCode";
 const description =
-  "Every cURL converter CurlToCode supports, from Python and JavaScript to Go, Rust, Java, C#, PHP, and Ruby. All conversion runs locally in your browser.";
+  "Browse CurlToCode's cURL-to-code generators and static code-to-cURL parsers for JavaScript, TypeScript, Python, Go, Rust, Java, C#, PHP, and Ruby.";
+
+function clientsFor(parent: string): typeof converters {
+  return (clientsByParent.get(parent) ?? []).sort(
+    (a, b) => a.data.order - b.data.order,
+  );
+}
 ---
 
 <BaseLayout
@@ -40,28 +55,63 @@ const description =
       </ol>
     </nav>
     <header class="hero">
-      <span class="eyebrow">Supported targets</span>
-      <h1>All cURL converters</h1>
+      <span class="eyebrow">Supported conversions</span>
+      <h1>cURL and code converters</h1>
       <p class="lede">
-        {hubs.length} languages and {converters.length} conversion targets, each backed
-        by a generator that is tested against the same normalized request model.
+        {converters.length} tested conversion pages backed by the same normalized
+        HTTP request model. Every conversion runs locally in your browser.
       </p>
     </header>
   </div>
 
   <section class="content-section">
     <div class="shell">
+      <h2>cURL to code</h2>
+      <p>
+        Generate idiomatic client code while preserving the request's methods,
+        headers, query parameters, authentication, and body semantics.
+      </p>
       <ul class="converter-index">
         {
-          hubs.map((hub) => {
-            const clients = (clientsByParent.get(hub.data.slug) ?? []).sort(
-              (a, b) => a.data.order - b.data.order,
-            );
+          forwardHubs.map((hub) => {
+            const clients = clientsFor(hub.data.slug);
             return (
               <li class="converter-index-item">
                 <h2>
                   <a href={`/${hub.data.slug}`}>{hub.data.heading}</a>
                 </h2>
+                <p>{hub.data.lede}</p>
+                {clients.length > 0 && (
+                  <ul class="converter-client-list">
+                    {clients.map((client) => (
+                      <li>
+                        <a href={`/${client.data.slug}`}>
+                          {client.data.clientLabel}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            );
+          })
+        }
+      </ul>
+
+      <h2>Code to cURL</h2>
+      <p>
+        Parse supported static request code without executing it, then generate
+        a readable cURL command from the recovered request.
+      </p>
+      <ul class="converter-index">
+        {
+          reverseHubs.map((hub) => {
+            const clients = clientsFor(hub.data.slug);
+            return (
+              <li class="converter-index-item">
+                <h3>
+                  <a href={`/${hub.data.slug}`}>{hub.data.heading}</a>
+                </h3>
                 <p>{hub.data.lede}</p>
                 {clients.length > 0 && (
                   <ul class="converter-client-list">

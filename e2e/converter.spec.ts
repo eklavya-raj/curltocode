@@ -4,7 +4,7 @@ import type { Page } from "@playwright/test";
 const productionBaseUrl = "http://127.0.0.1:4324";
 const indexablePages = [
   ["/", "cURL ↔ Code Converter"],
-  ["/converters", "All cURL converters"],
+  ["/converters", "cURL and code converters"],
   ["/about", "About CurlToCode"],
   ["/contact", "Contact"],
   ["/cookies", "Cookie Policy"],
@@ -41,6 +41,16 @@ const indexablePages = [
   ["/curl-to-typescript/axios", "Convert cURL to TypeScript Axios"],
   ["/curl-to-typescript/fetch", "Convert cURL to TypeScript Fetch"],
   ["/curl-to-typescript/undici", "Convert cURL to TypeScript Undici"],
+  ["/javascript-to-curl", "Convert JavaScript to cURL"],
+  ["/javascript-to-curl/axios", "Convert JavaScript Axios to cURL"],
+  ["/javascript-to-curl/fetch", "Convert JavaScript Fetch to cURL"],
+  ["/typescript-to-curl", "Convert TypeScript to cURL"],
+  ["/typescript-to-curl/axios", "Convert TypeScript Axios to cURL"],
+  ["/typescript-to-curl/fetch", "Convert TypeScript Fetch to cURL"],
+  ["/python-to-curl", "Convert Python to cURL"],
+  ["/python-to-curl/aiohttp", "Convert Python aiohttp to cURL"],
+  ["/python-to-curl/httpx", "Convert Python HTTPX to cURL"],
+  ["/python-to-curl/requests", "Convert Python Requests to cURL"],
 ] as const;
 
 async function openConverter(page: Page): Promise<void> {
@@ -112,16 +122,18 @@ test("reports dynamic Fetch expressions explicitly", async ({ page }) => {
   await expect(page.getByRole("alert")).toContainText("getHeaders()");
 });
 
-test("reads Python back to cURL and exposes a source language selector", async ({
+test("reads Python back to cURL and reveals libraries after choosing a language", async ({
   page,
 }) => {
   await openConverter(page);
   await page.getByRole("button", { name: "Code → cURL" }).click();
 
-  const source = page.getByRole("combobox", { name: "Source", exact: true });
+  const source = page.getByRole("combobox", {
+    name: "Language",
+    exact: true,
+  });
   await expect(source).toHaveAttribute("data-value", "auto");
-  // The forward target selectors do not apply when reading code back.
-  await expect(page.getByRole("combobox", { name: "Language" })).toHaveCount(0);
+  await expect(page.getByRole("combobox", { name: "Library" })).toHaveCount(0);
 
   await page
     .getByLabel("JavaScript, TypeScript, or Python request code")
@@ -138,6 +150,9 @@ test("reads Python back to cURL and exposes a source language selector", async (
   await source.click();
   await page.getByRole("option", { name: "Python", exact: true }).click();
   await expect(source).toHaveAttribute("data-value", "python");
+  await expect(
+    page.getByRole("combobox", { name: "Library", exact: true }),
+  ).toHaveAttribute("data-value", "requests");
   await expect(page.getByLabel("Converted output")).toHaveValue(
     /curl 'https:\/\/api\.example\.com\/py'/u,
   );
@@ -152,11 +167,10 @@ test("SEO pages keep their language and client for Code to cURL", async ({
     .waitFor();
   await page.getByRole("button", { name: "Code → cURL" }).click();
 
-  await expect(page.getByRole("combobox", { name: "Source" })).toHaveCount(0);
   await expect(
     page.getByRole("combobox", { name: "Language" }),
   ).toHaveAttribute("data-value", "python");
-  await expect(page.getByRole("combobox", { name: "Client" })).toHaveAttribute(
+  await expect(page.getByRole("combobox", { name: "Library" })).toHaveAttribute(
     "data-value",
     "httpx",
   );
@@ -169,7 +183,7 @@ test("SEO pages keep their language and client for Code to cURL", async ({
   await expect(page.getByText("Parsed as Python HTTPX.")).toBeVisible();
 });
 
-test("SEO pages keep unsupported reverse targets and report the limitation", async ({
+test("forward SEO pages without a reverse parser use auto-detect", async ({
   page,
 }) => {
   await page.goto("/curl-to-go/resty");
@@ -180,16 +194,39 @@ test("SEO pages keep unsupported reverse targets and report the limitation", asy
 
   await expect(
     page.getByRole("combobox", { name: "Language" }),
-  ).toHaveAttribute("data-value", "go");
-  await expect(page.getByRole("combobox", { name: "Client" })).toHaveAttribute(
+  ).toHaveAttribute("data-value", "auto");
+  await expect(page.getByRole("combobox", { name: "Library" })).toHaveCount(0);
+  await expect(
+    page.getByLabel("JavaScript, TypeScript, or Python request code"),
+  ).toHaveValue(/fetch/u);
+  await expect(page.getByLabel("Converted output")).toHaveValue(
+    /curl 'https:\/\/api\.example\.com\/users'/u,
+  );
+});
+
+test("reverse SEO pages open in the matching mode, language, and library", async ({
+  page,
+}) => {
+  await page.goto("/javascript-to-curl/axios");
+  await page
+    .locator('[aria-label="cURL and code converter"][data-ready="true"]')
+    .waitFor();
+
+  await expect(
+    page.getByRole("button", { name: "Code → cURL" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    page.getByRole("combobox", { name: "Language" }),
+  ).toHaveAttribute("data-value", "javascript");
+  await expect(page.getByRole("combobox", { name: "Library" })).toHaveAttribute(
     "data-value",
-    "resty",
+    "axios",
   );
-  await expect(page.getByLabel("Go Resty request code")).toHaveValue(
-    /resty\.New/u,
+  await expect(page.getByLabel("JavaScript Axios request code")).toHaveValue(
+    /import axios/u,
   );
-  await expect(page.getByRole("alert")).toContainText(
-    "Code → cURL is not supported yet for Go Resty",
+  await expect(page.getByLabel("Converted output")).toHaveValue(
+    /curl 'https:\/\/api\.example\.com\/users\?page=1'/u,
   );
 });
 

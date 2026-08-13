@@ -1,5 +1,5 @@
-import type { CurlToCodeOptions } from "curltocode";
-import { convert } from "curltocode";
+import type { CurlToCodeOptions, ReverseLanguage } from "curltocode";
+import { convert, parseCode, requestToCurl } from "curltocode";
 
 /**
  * Canonical example requests shown on every converter page.
@@ -84,4 +84,40 @@ export function renderExamples(
       };
     }
   });
+}
+
+/**
+ * Build reverse examples through both production paths: the real forward
+ * generator provides idiomatic source, then the AST parser turns that source
+ * back into the normalized request consumed by the cURL generator.
+ */
+export async function renderReverseExamples(
+  options: CurlToCodeOptions,
+): Promise<readonly RenderedExample[]> {
+  const parserLanguage: ReverseLanguage =
+    options.language === "python" ? "python" : "javascript";
+
+  return Promise.all(
+    SCENARIOS.map(async (scenario) => {
+      try {
+        const code = convert(scenario.curl, options);
+        const parsed = await parseCode(code, parserLanguage);
+        return {
+          ...scenario,
+          curl: requestToCurl(parsed.request),
+          code,
+          limitation: undefined,
+        };
+      } catch (error) {
+        return {
+          ...scenario,
+          code: undefined,
+          limitation:
+            error instanceof Error
+              ? error.message
+              : "This request cannot be represented by this client.",
+        };
+      }
+    }),
+  );
 }

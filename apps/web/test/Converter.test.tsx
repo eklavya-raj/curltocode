@@ -23,7 +23,7 @@ type User = ReturnType<typeof userEvent.setup>;
 
 async function chooseTarget(
   user: User,
-  label: "Language" | "Client",
+  label: "Language" | "Client" | "Library",
   value: string,
 ): Promise<void> {
   const trigger = screen.getByRole("combobox", { name: label });
@@ -37,14 +37,6 @@ async function chooseTarget(
   if (targetIndex < 0) throw new Error(`Unknown option ${value}.`);
   await user.keyboard(`{Home}${"{ArrowDown}".repeat(targetIndex)}{Enter}`);
   expect(trigger).toHaveAttribute("data-value", value);
-}
-
-async function chooseSource(user: User, option: string): Promise<void> {
-  const trigger = screen.getByRole("combobox", { name: "Source" });
-  trigger.focus();
-  await user.keyboard("{Enter}");
-  await screen.findByRole("listbox");
-  await user.click(await screen.findByRole("option", { name: option }));
 }
 
 beforeEach(() => {
@@ -193,7 +185,11 @@ describe("Converter", () => {
     const user = userEvent.setup();
     render(<Converter />);
     await user.click(screen.getByRole("button", { name: "Code → cURL" }));
-    expect(screen.queryByLabelText("Language")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Language")).toHaveAttribute(
+      "data-value",
+      "auto",
+    );
+    expect(screen.queryByLabelText("Library")).not.toBeInTheDocument();
     await waitFor(() =>
       expect(valueOf("Converted output")).toContain(
         "curl 'https://api.example.com/users'",
@@ -313,20 +309,28 @@ describe("Converter", () => {
     expect(valueOf("cURL command")).toBe(before);
   });
 
-  it("offers auto-detection only in homepage reverse mode", async () => {
+  it("shows one reverse dropdown for auto-detect and reveals libraries for a language", async () => {
     const user = userEvent.setup();
     render(<Converter />);
-    expect(screen.queryByRole("combobox", { name: "Source" })).toBeNull();
     expect(screen.getByRole("combobox", { name: "Language" })).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Code → cURL" }));
-    expect(screen.getByRole("combobox", { name: "Source" })).toHaveAttribute(
+    expect(screen.getByRole("combobox", { name: "Language" })).toHaveAttribute(
       "data-value",
       "auto",
     );
-    // The homepage has no route-specific target, so detection owns the input.
-    expect(screen.queryByRole("combobox", { name: "Language" })).toBeNull();
-    expect(screen.queryByRole("combobox", { name: "Client" })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Library" })).toBeNull();
+
+    await chooseTarget(user, "Language", "typescript");
+    expect(screen.getByRole("combobox", { name: "Library" })).toHaveAttribute(
+      "data-value",
+      "fetch",
+    );
+    await chooseTarget(user, "Library", "axios");
+    expect(screen.getByRole("combobox", { name: "Library" })).toHaveAttribute(
+      "data-value",
+      "axios",
+    );
   });
 
   it("keeps an SEO page's language and client in reverse mode", async () => {
@@ -341,12 +345,11 @@ describe("Converter", () => {
 
     await user.click(screen.getByRole("button", { name: "Code → cURL" }));
 
-    expect(screen.queryByRole("combobox", { name: "Source" })).toBeNull();
     expect(screen.getByRole("combobox", { name: "Language" })).toHaveAttribute(
       "data-value",
       "python",
     );
-    expect(screen.getByRole("combobox", { name: "Client" })).toHaveAttribute(
+    expect(screen.getByRole("combobox", { name: "Library" })).toHaveAttribute(
       "data-value",
       "httpx",
     );
@@ -359,7 +362,7 @@ describe("Converter", () => {
     expect(screen.getByText("Parsed as Python HTTPX.")).toBeVisible();
   });
 
-  it("reports unsupported SEO reverse targets without auto-detecting", async () => {
+  it("falls back to auto-detect when a forward page has no reverse parser", async () => {
     const user = userEvent.setup();
     render(
       <Converter
@@ -371,17 +374,18 @@ describe("Converter", () => {
 
     await user.click(screen.getByRole("button", { name: "Code → cURL" }));
 
-    expect(valueOf("Go Resty request code")).toContain("resty.New");
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Code → cURL is not supported yet for Go Resty",
-    );
     expect(screen.getByRole("combobox", { name: "Language" })).toHaveAttribute(
       "data-value",
-      "go",
+      "auto",
     );
-    expect(screen.getByRole("combobox", { name: "Client" })).toHaveAttribute(
-      "data-value",
-      "resty",
+    expect(screen.queryByRole("combobox", { name: "Library" })).toBeNull();
+    expect(valueOf("JavaScript, TypeScript, or Python request code")).toContain(
+      "fetch",
+    );
+    await waitFor(() =>
+      expect(valueOf("Converted output")).toContain(
+        "curl 'https://api.example.com/users'",
+      ),
     );
   });
 
@@ -426,7 +430,11 @@ describe("Converter", () => {
     );
     expect(screen.getByText("Detected Requests.")).toBeInTheDocument();
 
-    await chooseSource(user, "Python");
+    await chooseTarget(user, "Language", "python");
+    expect(screen.getByRole("combobox", { name: "Library" })).toHaveAttribute(
+      "data-value",
+      "requests",
+    );
     await waitFor(() =>
       expect(valueOf("Converted output")).toContain(
         "curl 'https://api.example.com/py'",
@@ -440,9 +448,41 @@ describe("Converter", () => {
     await user.click(screen.getByRole("button", { name: "Code → cURL" }));
     // The default snippet is JavaScript, so forcing Python must fail loudly
     // rather than quietly falling back to a parser that would succeed.
-    await chooseSource(user, "Python");
+    await chooseTarget(user, "Language", "python");
     expect(await screen.findByRole("alert")).toHaveTextContent(
       /No supported Requests, HTTPX, or aiohttp call was found/u,
+    );
+  });
+
+  it("opens a reverse SEO page directly in its language and library", async () => {
+    render(
+      <Converter
+        initialLanguage="typescript"
+        initialClient="axios"
+        initialMode="code-to-curl"
+        reverseStrategy="selected-target"
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Code → cURL" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("combobox", { name: "Language" })).toHaveAttribute(
+      "data-value",
+      "typescript",
+    );
+    expect(screen.getByRole("combobox", { name: "Library" })).toHaveAttribute(
+      "data-value",
+      "axios",
+    );
+    expect(valueOf("TypeScript Axios request code")).toContain(
+      "AxiosRequestConfig",
+    );
+    await waitFor(() =>
+      expect(valueOf("Converted output")).toContain(
+        "curl 'https://api.example.com/users?page=1'",
+      ),
     );
   });
 

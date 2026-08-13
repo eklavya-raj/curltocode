@@ -6,7 +6,7 @@ import ExampleList from "../components/ExampleList.astro";
 import FaqList from "../components/FaqList.astro";
 import RelatedConverters from "../components/RelatedConverters.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
-import { renderExamples } from "../lib/examples.js";
+import { renderExamples, renderReverseExamples } from "../lib/examples.js";
 import type { BreadcrumbEntry } from "../lib/structured-data.js";
 
 export async function getStaticPaths() {
@@ -21,10 +21,16 @@ const { entry } = Astro.props;
 const data = entry.data;
 const { Content } = await render(entry);
 
-const examples = renderExamples({
-  language: data.language,
-  client: data.client,
-});
+const examples =
+  data.direction === "code-to-curl"
+    ? await renderReverseExamples({
+        language: data.language,
+        client: data.client,
+      })
+    : renderExamples({
+        language: data.language,
+        client: data.client,
+      });
 
 const all = await getCollection("converters");
 const parent =
@@ -36,9 +42,9 @@ const breadcrumbs: BreadcrumbEntry[] = [
   { name: "Converters", path: "/converters" },
   ...(parent === undefined
     ? []
-    : [{ name: parent.data.languageLabel, path: `/${parent.data.slug}` }]),
+    : [{ name: parent.data.heading, path: `/${parent.data.slug}` }]),
   {
-    name: parent === undefined ? data.languageLabel : data.clientLabel,
+    name: parent === undefined ? data.heading : data.clientLabel,
     path: `/${data.slug}`,
   },
 ];
@@ -48,7 +54,9 @@ const related = data.related
   .filter((candidate) => candidate !== undefined);
 
 const featureList = [
-  `cURL to ${data.languageLabel} ${data.clientLabel}`,
+  data.direction === "code-to-curl"
+    ? `${data.languageLabel} ${data.clientLabel} to cURL`
+    : `cURL to ${data.languageLabel} ${data.clientLabel}`,
   "Local, in-browser conversion",
   "Headers, cookies, authentication, and request bodies",
 ];
@@ -102,6 +110,7 @@ const featureList = [
     <Converter
       initialLanguage={data.language}
       initialClient={data.client}
+      initialMode={data.direction}
       reverseStrategy="selected-target"
       client:idle
     />
@@ -111,6 +120,7 @@ const featureList = [
     <div class="shell">
       <ExampleList
         examples={examples}
+        direction={data.direction}
         language={data.language}
         languageLabel={data.languageLabel}
         clientLabel={data.clientLabel}

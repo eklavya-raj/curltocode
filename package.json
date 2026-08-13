@@ -17,6 +17,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "test:syntax:portable": "pnpm --filter @curltocode/core build && pnpm --filter @curltocode/generators build && node scripts/verify-portable-syntax.mjs",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "typecheck": "pnpm -r typecheck",

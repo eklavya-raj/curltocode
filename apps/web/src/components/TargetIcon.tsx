@@ -64,15 +64,16 @@ const clientIcons: Record<Client, IconDefinition> = {
 };
 
 /**
- * Reverse conversion reads a source language rather than targeting one, and its
- * list is shorter than the generator registry: TypeScript is read by the
- * JavaScript parser, so the two share an entry.
+ * Reverse conversion reads a source language rather than targeting one. The
+ * JavaScript AST parser also understands TypeScript syntax, but the UI keeps
+ * the languages separate so an explicit selection reflects the pasted code.
  */
-export type SourceLanguage = "auto" | "javascript" | "python";
+export type SourceLanguage = "auto" | "javascript" | "typescript" | "python";
 
 const sourceIcons: Record<SourceLanguage, IconDefinition> = {
   auto: { type: "monogram", text: "A" },
   javascript: { type: "brand", icon: siJavascript },
+  typescript: { type: "brand", icon: siTypescript },
   python: { type: "brand", icon: siPython },
 };
 

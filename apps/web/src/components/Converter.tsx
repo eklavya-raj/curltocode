@@ -4,6 +4,9 @@ import type {
   GeneratorClient as Client,
   GeneratorLanguage as Language,
   HttpRequest,
+  ReverseClient,
+  ReverseTarget,
+  ReverseTargetLanguage,
 } from "curltocode";
 import {
   REVERSE_CLIENT_LABELS,
@@ -24,6 +27,7 @@ type Mode = "curl-to-code" | "code-to-curl";
 interface ConverterProps {
   readonly initialLanguage?: Language;
   readonly initialClient?: Client;
+  readonly initialMode?: Mode;
   readonly reverseStrategy?: "auto-detect" | "selected-target";
 }
 
@@ -91,7 +95,8 @@ const clientLabels: Record<Client, string> = {
  */
 const SOURCE_OPTIONS: readonly { label: string; value: SourceLanguage }[] = [
   { label: "Auto-detect", value: "auto" },
-  { label: "JavaScript / TypeScript", value: "javascript" },
+  { label: "JavaScript", value: "javascript" },
+  { label: "TypeScript", value: "typescript" },
   { label: "Python", value: "python" },
 ];
 
@@ -120,6 +125,27 @@ function targetLabel(language: Language, client: Client): string {
   return `${languageLabels[language]} ${clientLabels[client]}`;
 }
 
+function reverseTargetFor(
+  language: Language,
+  client: Client,
+): ReverseTarget | undefined {
+  return supportedReverseTargets.find(
+    (target) => target.language === language && target.client === client,
+  );
+}
+
+function reverseClientsForLanguage(
+  language: ReverseTargetLanguage,
+): readonly ReverseClient[] {
+  return supportedReverseTargets
+    .filter((target) => target.language === language)
+    .map(({ client }) => client);
+}
+
+function isReverseClient(client: Client): client is ReverseClient {
+  return supportedReverseTargets.some((target) => target.client === client);
+}
+
 function defaultCodeForTarget(language: Language, client: Client): string {
   const request = parseCurlDetailed(DEFAULT_CURL).request;
   return generateDetailed(request, { language, client }).code;
@@ -128,6 +154,7 @@ function defaultCodeForTarget(language: Language, client: Client): string {
 export default function Converter({
   initialLanguage = "javascript",
   initialClient = "fetch",
+  initialMode = "curl-to-code",
   reverseStrategy = "auto-detect",
 }: ConverterProps) {
   const rootRef = useRef<HTMLElement>(null);
@@ -137,8 +164,25 @@ export default function Converter({
   const safeInitialClient = initialClients.includes(initialClient)
     ? initialClient
     : (initialClients[0] ?? "fetch");
-  const [mode, setMode] = useState<Mode>("curl-to-code");
-  const [input, setInput] = useState(DEFAULT_CURL);
+  const initialReverseTarget =
+    reverseStrategy === "selected-target"
+      ? reverseTargetFor(initialLanguage, safeInitialClient)
+      : undefined;
+  const initialReverseLanguage: SourceLanguage =
+    initialReverseTarget?.language ?? "auto";
+  const initialReverseClient: ReverseClient =
+    initialReverseTarget?.client ?? "fetch";
+  const [mode, setMode] = useState<Mode>(initialMode);
+  const [input, setInput] = useState(() =>
+    initialMode === "curl-to-code"
+      ? DEFAULT_CURL
+      : initialReverseTarget === undefined
+        ? DEFAULT_CODE
+        : defaultCodeForTarget(
+            initialReverseTarget.language,
+            initialReverseTarget.client,
+          ),
+  );
   const [language, setLanguage] = useState<Language>(initialLanguage);
   const [client, setClient] = useState<Client>(safeInitialClient);
   const [reverseState, setReverseState] = useState<ConversionState>({
@@ -150,7 +194,11 @@ export default function Converter({
   });
   const [feedback, setFeedback] = useState("");
   const [copied, setCopied] = useState(false);
-  const [sourceLanguage, setSourceLanguage] = useState<SourceLanguage>("auto");
+  const [sourceLanguage, setSourceLanguage] = useState<SourceLanguage>(
+    initialReverseLanguage,
+  );
+  const [sourceClient, setSourceClient] =
+    useState<ReverseClient>(initialReverseClient);
 
   const availableClients = useMemo(
     () => clientsForLanguage(language),
@@ -164,17 +212,33 @@ export default function Converter({
       })),
     [availableClients],
   );
+  const availableSourceClients = useMemo(
+    () =>
+      sourceLanguage === "auto"
+        ? []
+        : reverseClientsForLanguage(sourceLanguage),
+    [sourceLanguage],
+  );
+  const availableSourceClientOptions = useMemo(
+    () =>
+      availableSourceClients.map((value) => ({
+        label: clientLabels[value],
+        value,
+      })),
+    [availableSourceClients],
+  );
   const selectedReverseTarget = useMemo(
     () =>
-      supportedReverseTargets.find(
-        (target) => target.language === language && target.client === client,
-      ),
-    [client, language],
+      sourceLanguage === "auto"
+        ? undefined
+        : supportedReverseTargets.find(
+            (target) =>
+              target.language === sourceLanguage &&
+              target.client === sourceClient,
+          ),
+    [sourceClient, sourceLanguage],
   );
-  const reverseParserKey =
-    reverseStrategy === "auto-detect"
-      ? `auto:${sourceLanguage}`
-      : `target:${language}:${client}`;
+  const reverseParserKey = `${sourceLanguage}:${sourceClient}`;
 
   useEffect(() => {
     rootRef.current?.setAttribute("data-ready", "true");
@@ -276,35 +340,19 @@ export default function Converter({
         });
         return;
       }
-      if (
-        reverseStrategy === "selected-target" &&
-        selectedReverseTarget === undefined
-      ) {
-        setReverseState({
-          source: input,
-          parserKey: reverseParserKey,
-          output: "",
-          error: `Code → cURL is not supported yet for ${targetLabel(language, client)}. Choose a supported language and client.`,
-          warning: "",
-          status: "",
-        });
-        return;
-      }
       try {
         const parserLanguage =
-          reverseStrategy === "selected-target"
-            ? selectedReverseTarget?.parserLanguage
-            : sourceLanguage === "auto"
-              ? undefined
-              : sourceLanguage;
+          sourceLanguage === "auto"
+            ? undefined
+            : selectedReverseTarget?.parserLanguage;
         const parsed = await parseCode(input, parserLanguage);
         if (cancelled) return;
-        if (reverseStrategy === "selected-target" && parsed.client !== client) {
+        if (sourceLanguage !== "auto" && parsed.client !== sourceClient) {
           setReverseState({
             source: input,
             parserKey: reverseParserKey,
             output: "",
-            error: `Selected ${targetLabel(language, client)}, but the code uses ${REVERSE_CLIENT_LABELS[parsed.client]}. Choose the matching client or paste ${clientLabels[client]} code.`,
+            error: `Selected ${targetLabel(sourceLanguage, sourceClient)}, but the code uses ${REVERSE_CLIENT_LABELS[parsed.client]}. Choose the matching library or paste ${clientLabels[sourceClient]} code.`,
             warning: "",
             status: "",
           });
@@ -318,8 +366,8 @@ export default function Converter({
           error: "",
           warning: "",
           status:
-            reverseStrategy === "selected-target"
-              ? `Parsed as ${targetLabel(language, client)}.`
+            sourceLanguage !== "auto"
+              ? `Parsed as ${targetLabel(sourceLanguage, sourceClient)}.`
               : `Detected ${REVERSE_CLIENT_LABELS[parsed.client]}.`,
         });
       } catch (conversionError) {
@@ -338,13 +386,11 @@ export default function Converter({
       cancelled = true;
     };
   }, [
-    client,
     input,
-    language,
     mode,
     reverseParserKey,
-    reverseStrategy,
     selectedReverseTarget,
+    sourceClient,
     sourceLanguage,
   ]);
 
@@ -367,13 +413,22 @@ export default function Converter({
     mode === "curl-to-code" ? conversion.dependency : undefined;
 
   const switchMode = (nextMode: Mode): void => {
+    let nextSourceLanguage = sourceLanguage;
+    let nextSourceClient = sourceClient;
+    if (nextMode === "code-to-curl" && reverseStrategy === "selected-target") {
+      const currentTarget = reverseTargetFor(language, client);
+      nextSourceLanguage = currentTarget?.language ?? "auto";
+      nextSourceClient = currentTarget?.client ?? sourceClient;
+      setSourceLanguage(nextSourceLanguage);
+      setSourceClient(nextSourceClient);
+    }
     setMode(nextMode);
     setInput(
       nextMode === "curl-to-code"
         ? DEFAULT_CURL
-        : reverseStrategy === "selected-target"
-          ? defaultCodeForTarget(language, client)
-          : DEFAULT_CODE,
+        : nextSourceLanguage === "auto"
+          ? DEFAULT_CODE
+          : defaultCodeForTarget(nextSourceLanguage, nextSourceClient),
     );
     setFeedback("");
     setCopied(false);
@@ -383,6 +438,13 @@ export default function Converter({
     setLanguage(nextLanguage);
     const firstClient = clientsForLanguage(nextLanguage)[0];
     if (firstClient !== undefined) setClient(firstClient);
+  };
+
+  const changeSourceLanguage = (nextLanguage: SourceLanguage): void => {
+    setSourceLanguage(nextLanguage);
+    if (nextLanguage === "auto") return;
+    const firstClient = reverseClientsForLanguage(nextLanguage)[0];
+    if (firstClient !== undefined) setSourceClient(firstClient);
   };
 
   const copyOutput = useCallback(async (): Promise<void> => {
@@ -461,7 +523,7 @@ export default function Converter({
           </button>
         </div>
         <div className="selectors">
-          {mode === "curl-to-code" || reverseStrategy === "selected-target" ? (
+          {mode === "curl-to-code" ? (
             <>
               <TargetSelect
                 kind="language"
@@ -480,13 +542,29 @@ export default function Converter({
               />
             </>
           ) : (
-            <TargetSelect
-              kind="source"
-              label="Source"
-              options={SOURCE_OPTIONS}
-              value={sourceLanguage}
-              onValueChange={setSourceLanguage}
-            />
+            <>
+              <TargetSelect
+                kind="source"
+                label="Language"
+                options={SOURCE_OPTIONS}
+                value={sourceLanguage}
+                onValueChange={changeSourceLanguage}
+              />
+              {sourceLanguage !== "auto" && (
+                <TargetSelect
+                  kind="client"
+                  label="Library"
+                  options={availableSourceClientOptions}
+                  value={sourceClient}
+                  onValueChange={(nextClient) => {
+                    if (isReverseClient(nextClient)) {
+                      setSourceClient(nextClient);
+                    }
+                  }}
+                  disabled={availableSourceClients.length < 2}
+                />
+              )}
+            </>
           )}
         </div>
       </div>
@@ -524,8 +602,8 @@ export default function Converter({
           <label className="sr-only" htmlFor="converter-input">
             {mode === "curl-to-code"
               ? "cURL command"
-              : reverseStrategy === "selected-target"
-                ? `${targetLabel(language, client)} request code`
+              : sourceLanguage !== "auto"
+                ? `${targetLabel(sourceLanguage, sourceClient)} request code`
                 : "JavaScript, TypeScript, or Python request code"}
           </label>
           <textarea

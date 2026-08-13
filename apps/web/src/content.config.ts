@@ -41,6 +41,7 @@ const CLIENTS = [
 const converters = defineCollection({
   loader: glob({ base: "./src/content/converters", pattern: "**/*.md" }),
   schema: z.object({
+    direction: z.enum(["curl-to-code", "code-to-curl"]).default("curl-to-code"),
     /** Route path, without a leading slash. */
     slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9-]+)?$/u),
     title: z.string().min(20).max(65),

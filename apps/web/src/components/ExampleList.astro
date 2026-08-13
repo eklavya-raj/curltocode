@@ -6,12 +6,19 @@ import { CURL_LANGUAGE, grammarFor, highlight } from "../lib/highlight.js";
 
 interface Props {
   examples: readonly RenderedExample[];
+  direction?: "curl-to-code" | "code-to-curl";
   language: GeneratorLanguage;
   languageLabel: string;
   clientLabel: string;
 }
 
-const { examples, language, languageLabel, clientLabel } = Astro.props;
+const {
+  examples,
+  direction = "curl-to-code",
+  language,
+  languageLabel,
+  clientLabel,
+} = Astro.props;
 
 // Highlighting happens here, at build time, so the rendered pages carry no
 // syntax-highlighting JavaScript.
@@ -28,10 +35,19 @@ const highlighted = await Promise.all(
 );
 ---
 
-<h2>{languageLabel} {clientLabel} examples</h2>
+<h2>
+  {
+    direction === "code-to-curl"
+      ? `${clientLabel} to cURL examples`
+      : `${languageLabel} ${clientLabel} examples`
+  }
+</h2>
 <p>
-  Every snippet below is produced by the same converter that powers this page,
-  so it always matches what the tool emits today.
+  {
+    direction === "code-to-curl"
+      ? "Every cURL command below is parsed from the source beside it using the same conversion engine as the interactive tool."
+      : "Every snippet below is produced by the same converter that powers this page, so it always matches what the tool emits today."
+  }
 </p>
 
 {
@@ -40,22 +56,49 @@ const highlighted = await Promise.all(
       <h3 id={example.id}>{example.heading}</h3>
       <p>{example.summary}</p>
       <div class="example-pair">
-        <figure>
-          <figcaption>cURL</figcaption>
-          <Fragment set:html={example.curlHtml} />
-        </figure>
-        <figure>
-          <figcaption>
-            {languageLabel} · {clientLabel}
-          </figcaption>
-          {example.codeHtml === undefined ? (
-            <p class="limitation">
-              <strong>Not supported:</strong> {example.limitation}
-            </p>
-          ) : (
-            <Fragment set:html={example.codeHtml} />
-          )}
-        </figure>
+        {direction === "code-to-curl" ? (
+          <>
+            <figure>
+              <figcaption>
+                {languageLabel} · {clientLabel}
+              </figcaption>
+              {example.codeHtml === undefined ? (
+                <p class="limitation">
+                  <strong>Not supported:</strong> {example.limitation}
+                </p>
+              ) : (
+                <Fragment set:html={example.codeHtml} />
+              )}
+            </figure>
+            <figure>
+              <figcaption>cURL</figcaption>
+              {example.codeHtml === undefined ? (
+                <p class="limitation">No cURL command was generated.</p>
+              ) : (
+                <Fragment set:html={example.curlHtml} />
+              )}
+            </figure>
+          </>
+        ) : (
+          <>
+            <figure>
+              <figcaption>cURL</figcaption>
+              <Fragment set:html={example.curlHtml} />
+            </figure>
+            <figure>
+              <figcaption>
+                {languageLabel} · {clientLabel}
+              </figcaption>
+              {example.codeHtml === undefined ? (
+                <p class="limitation">
+                  <strong>Not supported:</strong> {example.limitation}
+                </p>
+              ) : (
+                <Fragment set:html={example.codeHtml} />
+              )}
+            </figure>
+          </>
+        )}
       </div>
     </div>
   ))

@@ -34,6 +34,12 @@ export type PythonNode =
       readonly operands: readonly PythonNode[];
       readonly source: string;
     }
+  /** A static value converted to bytes with `.encode(...)`. */
+  | {
+      readonly kind: "encoded";
+      readonly value: PythonNode;
+      readonly encoding?: string;
+    }
   /** Anything outside the supported subset. `source` is shown to the user. */
   | { readonly kind: "unresolved"; readonly source: string };
 
@@ -402,7 +408,7 @@ function parseArguments(reader: Reader, source: string): PythonArguments {
 
 function parseExpression(reader: Reader, source: string): PythonNode {
   const start = reader.peek().start;
-  const node = parsePrimary(reader, source);
+  let node = parsePrimary(reader, source);
 
   // Adjacent string literals concatenate in Python.
   if (node.kind === "string") {
@@ -414,7 +420,40 @@ function parseExpression(reader: Reader, source: string): PythonNode {
       }
       combined += token.value;
     }
-    if (combined !== node.value) return { kind: "string", value: combined };
+    if (combined !== node.value) node = { kind: "string", value: combined };
+  }
+
+  // Generated Python uses `"bytes".encode("utf-8")` for inline binary
+  // payloads. Consume any method call here so the argument reader continues to
+  // later keywords; only encode has a static meaning in this subset.
+  if (
+    reader.at(".") &&
+    reader.peek(1).kind === "name" &&
+    reader.peek(2).value === "("
+  ) {
+    reader.next();
+    const method = reader.next().value;
+    const args = parseArguments(reader, source);
+    const end = reader.peek(-1).end;
+    if (method === "encode" && args.keyword.size === 0) {
+      const encodingNode = args.positional[0];
+      const encoding =
+        encodingNode?.kind === "string" ? encodingNode.value : undefined;
+      const normalizedEncoding = encoding?.toLowerCase().replaceAll("_", "-");
+      if (
+        args.positional.length <= 1 &&
+        (normalizedEncoding === undefined ||
+          normalizedEncoding === "utf-8" ||
+          normalizedEncoding === "utf8")
+      ) {
+        return {
+          kind: "encoded",
+          value: node,
+          ...(encoding === undefined ? {} : { encoding }),
+        };
+      }
+    }
+    return { kind: "unresolved", source: source.slice(start, end) };
   }
 
   // `+` folds when every operand is a statically known string, which is how
@@ -559,23 +598,163 @@ function parseSequence(
   return items;
 }
 
+interface SourceScopes {
+  readonly lineStarts: readonly number[];
+  readonly paths: readonly (readonly number[])[];
+}
+
+function indentationOf(line: string): number {
+  let indentation = 0;
+  for (const character of line) {
+    if (character === " ") indentation += 1;
+    else if (character === "\t") indentation += 8;
+    else break;
+  }
+  return indentation;
+}
+
 /**
- * Module-level `NAME = <expression>` bindings, in source order. Only the last
- * assignment before a given call is visible to it, and a name assigned more
- * than once before the call is dropped entirely rather than guessed at.
+ * Assign a stable scope path to every physical line using Python indentation.
+ * This is deliberately conservative: a binding is visible only when its block
+ * path is an ancestor of the request call's path. Values from sibling branches
+ * or unrelated functions therefore cannot leak into a conversion.
+ */
+function sourceScopes(source: string, tokens: readonly Token[]): SourceScopes {
+  const lineStarts = [0];
+  for (let index = 0; index < source.length; index += 1) {
+    if (source[index] === "\n") lineStarts.push(index + 1);
+  }
+
+  const paths: (readonly number[])[] = [];
+  const stack: { readonly id: number; readonly indentation: number }[] = [];
+  let nextScopeId = 1;
+  let tokenIndex = 0;
+  let bracketDepth = 0;
+  let continuationIndentation: number | undefined;
+
+  for (let lineIndex = 0; lineIndex < lineStarts.length; lineIndex += 1) {
+    const start = lineStarts[lineIndex] ?? 0;
+    const end = lineStarts[lineIndex + 1] ?? source.length;
+    const line = source.slice(start, end);
+    const indentation = indentationOf(line);
+    const lineTokens: Token[] = [];
+
+    while (
+      tokenIndex < tokens.length &&
+      (tokens[tokenIndex]?.start ?? source.length) < end
+    ) {
+      const token = tokens[tokenIndex];
+      tokenIndex += 1;
+      if (
+        token !== undefined &&
+        token.start >= start &&
+        token.kind !== "newline" &&
+        token.kind !== "end"
+      ) {
+        lineTokens.push(token);
+      }
+    }
+
+    const depthBefore = bracketDepth;
+    const hasStatement = lineTokens.length > 0;
+    if (hasStatement && depthBefore === 0) {
+      while (
+        stack.length > 0 &&
+        indentation <= (stack[stack.length - 1]?.indentation ?? -1)
+      ) {
+        stack.pop();
+      }
+      continuationIndentation = indentation;
+    }
+
+    paths.push(stack.map(({ id }) => id));
+
+    for (const token of lineTokens) {
+      if (token.kind !== "op") continue;
+      if (["(", "[", "{"].includes(token.value)) bracketDepth += 1;
+      else if ([")", "]", "}"].includes(token.value)) {
+        bracketDepth = Math.max(0, bracketDepth - 1);
+      }
+    }
+
+    const last = lineTokens[lineTokens.length - 1];
+    if (
+      hasStatement &&
+      bracketDepth === 0 &&
+      last?.kind === "op" &&
+      last.value === ":"
+    ) {
+      stack.push({
+        id: nextScopeId,
+        indentation: continuationIndentation ?? indentation,
+      });
+      nextScopeId += 1;
+    }
+  }
+
+  return { lineStarts, paths };
+}
+
+function lineIndexAt(offset: number, lineStarts: readonly number[]): number {
+  let low = 0;
+  let high = lineStarts.length - 1;
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    const start = lineStarts[middle] ?? 0;
+    const next = lineStarts[middle + 1] ?? Number.POSITIVE_INFINITY;
+    if (offset < start) high = middle - 1;
+    else if (offset >= next) low = middle + 1;
+    else return middle;
+  }
+  return Math.max(0, Math.min(low, lineStarts.length - 1));
+}
+
+function isPathPrefix(
+  candidate: readonly number[],
+  destination: readonly number[],
+): boolean {
+  return (
+    candidate.length <= destination.length &&
+    candidate.every((scope, index) => destination[index] === scope)
+  );
+}
+
+/**
+ * Static `NAME = <expression>` bindings visible to one request call. Keyword
+ * arguments inside a multiline call are excluded by bracket depth, and a name
+ * assigned more than once in the visible path is dropped rather than guessed.
  */
 export function collectBindings(
   source: string,
+  beforeOffset: number,
 ): ReadonlyMap<string, PythonNode> {
   const tokens = tokenize(source);
   const reader = new Reader(tokens, source);
   const bindings = new Map<string, PythonNode>();
   const reassigned = new Set<string>();
+  const scopes = sourceScopes(source, tokens);
+  const callPath =
+    scopes.paths[lineIndexAt(beforeOffset, scopes.lineStarts)] ?? [];
+  const bracketDepthAtToken: number[] = [];
+  let bracketDepth = 0;
+  for (const token of tokens) {
+    bracketDepthAtToken.push(bracketDepth);
+    if (token.kind !== "op") continue;
+    if (["(", "[", "{"].includes(token.value)) bracketDepth += 1;
+    else if ([")", "]", "}"].includes(token.value)) {
+      bracketDepth = Math.max(0, bracketDepth - 1);
+    }
+  }
 
   while (reader.peek().kind !== "end") {
     reader.skipNewlines();
     if (reader.peek().kind === "end") break;
+    if (reader.peek().start >= beforeOffset) break;
+    const candidatePath =
+      scopes.paths[lineIndexAt(reader.peek().start, scopes.lineStarts)] ?? [];
     if (
+      bracketDepthAtToken[reader.index] === 0 &&
+      isPathPrefix(candidatePath, callPath) &&
       reader.peek().kind === "name" &&
       reader.peek(1).kind === "op" &&
       reader.peek(1).value === "=" &&
@@ -659,6 +838,14 @@ export function deepResolve(
           key: deepResolve(entry.key, bindings),
           value: deepResolve(entry.value, bindings),
         })),
+      };
+    case "encoded":
+      return {
+        kind: "encoded",
+        value: deepResolve(resolved.value, bindings),
+        ...(resolved.encoding === undefined
+          ? {}
+          : { encoding: resolved.encoding }),
       };
     default:
       return resolved;

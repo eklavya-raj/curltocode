@@ -158,6 +158,29 @@ function asJson(node: PythonNode): JsonValue | undefined {
   }
 }
 
+function isJsonValue(value: unknown): value is JsonValue {
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "boolean"
+  ) {
+    return true;
+  }
+  if (typeof value === "number") return Number.isFinite(value);
+  if (Array.isArray(value)) return value.every(isJsonValue);
+  if (typeof value !== "object") return false;
+  return Object.values(value).every(isJsonValue);
+}
+
+function parseJsonText(text: string): JsonValue | undefined {
+  try {
+    const value: unknown = JSON.parse(text);
+    return isJsonValue(value) ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Read a name/value mapping. Python code writes these as a dict, but requests
  * also accepts a list of pairs, which preserves duplicate names.
@@ -379,6 +402,36 @@ function bodyFrom(
     return raw === undefined ? undefined : deepResolve(raw, bindings);
   };
 
+  const bodyFromText = (text: string): BodyOutcome => {
+    if (
+      declaredContentType?.toLowerCase().startsWith("application/json") === true
+    ) {
+      const value = parseJsonText(text);
+      if (value !== undefined) {
+        return { body: { kind: "json", value, raw: text } };
+      }
+    }
+    return { body: { kind: "text", value: text } };
+  };
+
+  const binaryFrom = (node: PythonNode): BodyOutcome | undefined => {
+    if (node.kind !== "encoded") return undefined;
+    const text = asString(node.value);
+    if (text === undefined) {
+      issues.push(
+        issueFor(
+          "body",
+          "Dynamic binary body cannot be resolved statically.",
+          node.value,
+        ),
+      );
+      return {};
+    }
+    return {
+      body: { kind: "binary", source: { kind: "inline", value: text } },
+    };
+  };
+
   const json = read("json");
   if (json !== undefined) {
     const value = asJson(json);
@@ -442,6 +495,8 @@ function bodyFrom(
   // HTTPX spells a raw body `content=`; requests overloads `data=`.
   const content = read("content");
   if (content !== undefined) {
+    const binary = binaryFrom(content);
+    if (binary !== undefined) return binary;
     const text = asString(content);
     if (text === undefined) {
       issues.push(
@@ -453,11 +508,13 @@ function bodyFrom(
       );
       return {};
     }
-    return { body: { kind: "text", value: text } };
+    return bodyFromText(text);
   }
 
   const data = read("data");
   if (data !== undefined) {
+    const binary = binaryFrom(data);
+    if (binary !== undefined) return binary;
     const fields = pairs(data);
     if (fields !== undefined) {
       const raw = fields
@@ -500,7 +557,7 @@ function bodyFrom(
           dropContentType: true,
         };
       }
-      return { body: { kind: "text", value: text } };
+      return bodyFromText(text);
     }
     issues.push(
       issueFor("body", "Dynamic body cannot be resolved statically.", data),
@@ -519,8 +576,8 @@ export function parsePythonRequest(source: string): ReverseParseResult {
     );
   }
 
-  const bindings = collectBindings(source);
   const { call, client } = detected;
+  const bindings = collectBindings(source, call.start);
   const issues: DynamicIssue[] = [];
   const positional = call.args.positional;
 

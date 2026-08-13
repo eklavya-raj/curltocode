@@ -38,6 +38,37 @@ requests.post("https://api.example.com/u", json={"name": "Ada", "admin": True, "
     });
   });
 
+  it("reads pre-serialized JSON under a JSON content type as JSON", () => {
+    const parsed = parsePythonRequest(`import httpx
+httpx.patch(
+    "https://api.example.com/u",
+    headers={"Content-Type": "application/json"},
+    content='{"name":"Ada","roles":["admin"]}',
+    follow_redirects=False,
+)`);
+    expect(parsed.request.body).toEqual({
+      kind: "json",
+      value: { name: "Ada", roles: ["admin"] },
+      raw: '{"name":"Ada","roles":["admin"]}',
+    });
+    expect(parsed.request.options.followRedirects).toBe(false);
+  });
+
+  it("reads encoded inline bytes and continues to later keyword options", () => {
+    const parsed = parsePythonRequest(`import requests
+requests.post(
+    "https://api.example.com/wire",
+    headers={"Content-Type": "application/octet-stream"},
+    data="wire-bytes-01".encode("utf-8"),
+    allow_redirects=False,
+)`);
+    expect(parsed.request.body).toEqual({
+      kind: "binary",
+      source: { kind: "inline", value: "wire-bytes-01" },
+    });
+    expect(parsed.request.options.followRedirects).toBe(false);
+  });
+
   it("takes the method from requests.request for custom verbs", () => {
     const parsed = parsePythonRequest(`import requests
 requests.request("PURGE", "https://api.example.com/x")`);
@@ -111,6 +142,64 @@ TOKEN = "abc123"
 requests.get("https://x.com", headers={"Authorization": "Bearer " + TOKEN})`)
         .auth,
     ).toEqual({ kind: "bearer", token: "abc123" });
+  });
+
+  it("resolves function-local aiohttp URL, headers, and JSON bindings", () => {
+    const parsed = parsePythonRequest(`import asyncio
+import aiohttp
+
+async def main():
+    url = "https://api.example.com/users?page=1"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer your-token",
+    }
+    payload = {"name": "Eklavya"}
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(
+            url,
+            headers=headers,
+            json=payload,
+            allow_redirects=False,
+        ) as response:
+            await response.text()
+
+asyncio.run(main())`);
+
+    expect(parsed.client).toBe("aiohttp");
+    expect(parsed.request.url).toBe("https://api.example.com/users");
+    expect(parsed.request.query).toEqual([{ name: "page", value: "1" }]);
+    expect(parsed.request.auth).toEqual({
+      kind: "bearer",
+      token: "your-token",
+    });
+    expect(parsed.request.body).toEqual({
+      kind: "json",
+      value: { name: "Eklavya" },
+      raw: '{"name":"Eklavya"}',
+    });
+    expect(parsed.request.options.followRedirects).toBe(false);
+    expect(generateCurl(parsed.request).code)
+      .toBe(`curl 'https://api.example.com/users?page=1' \\
+  -X POST \\
+  -H 'Content-Type: application/json' \\
+  -H 'Authorization: Bearer your-token' \\
+  --data-raw '{"name":"Eklavya"}'`);
+  });
+
+  it("does not resolve a binding from an unrelated function scope", () => {
+    expect(() =>
+      parsePythonRequest(`import aiohttp
+
+def unrelated():
+    headers = {"Authorization": "Bearer wrong-scope"}
+
+async def main():
+    async with aiohttp.ClientSession() as session:
+        async with session.get("https://api.example.com", headers=headers):
+            pass`),
+    ).toThrow(DynamicExpressionError);
   });
 
   it("ignores a name reassigned before the request rather than guessing", () => {
@@ -196,6 +285,14 @@ requests.post(
       [
         "percent formatting",
         `import requests\nrequests.get("https://x.com/%s" % user)`,
+      ],
+      [
+        "format call",
+        `import requests\nrequests.post("https://x.com", data="{}".format(value), allow_redirects=False)`,
+      ],
+      [
+        "non-UTF-8 byte encoding",
+        `import requests\nrequests.post("https://x.com", data="café".encode("latin-1"))`,
       ],
       [
         "dict comprehension headers",
