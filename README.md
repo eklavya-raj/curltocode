@@ -66,7 +66,10 @@ pnpm test:e2e
 The Astro content collection owns the converter landing pages. Their examples
 are generated from the real registry during the build. Social preview images
 and PWA icons are committed static assets; regenerate them after adding a page
-with `pnpm assets`.
+with `pnpm assets`. The production build creates a content-revisioned service
+worker that precaches the converter shell and lazy parser chunks, caches visited
+pages, and falls back to the local converter when navigation happens offline.
+Converter input is never placed in the cache or persisted.
 
 Asset generation requires the local `rsvg-convert` command, but ordinary
 installs and production builds do not.

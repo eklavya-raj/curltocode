@@ -1,6 +1,7 @@
 ---
 import { getCollection } from "astro:content";
 
+import PwaInstallButton from "../components/PwaInstallButton.astro";
 import StructuredData from "../components/StructuredData.astro";
 import ThemeToggle from "../components/ThemeToggle.astro";
 import type {
@@ -176,6 +177,7 @@ const structuredData = buildStructuredData({
             <a href="/javascript-to-curl">Code → cURL</a>
             <a href="/converters">All converters</a>
           </div>
+          <PwaInstallButton variant="header" />
           <a
             class="github-star"
             href="https://github.com/eklavya-raj/curltocode"
@@ -227,6 +229,9 @@ const structuredData = buildStructuredData({
             ))
           }
           <li><a href="/converters">All converters</a></li>
+          <li class="pwa-install-menu-item">
+            <PwaInstallButton variant="menu" />
+          </li>
         </ul>
       </div>
     </header>
@@ -268,6 +273,68 @@ const structuredData = buildStructuredData({
           .addEventListener("change", (event) => {
             if (event.matches) setOpen(false);
           });
+      }
+    </script>
+    <script>
+      interface BeforeInstallPromptEvent extends Event {
+        readonly userChoice: Promise<{
+          outcome: "accepted" | "dismissed";
+          platform: string;
+        }>;
+        prompt(): Promise<void>;
+      }
+
+      const installButtons = Array.from(
+        document.querySelectorAll<HTMLButtonElement>("[data-pwa-install]"),
+      );
+      let installPrompt: BeforeInstallPromptEvent | undefined;
+
+      function setInstallAvailable(available: boolean): void {
+        for (const button of installButtons) button.hidden = !available;
+      }
+
+      window.addEventListener("beforeinstallprompt", (event) => {
+        event.preventDefault();
+        installPrompt = event as BeforeInstallPromptEvent;
+        setInstallAvailable(true);
+      });
+
+      window.addEventListener("appinstalled", () => {
+        installPrompt = undefined;
+        setInstallAvailable(false);
+      });
+
+      for (const button of installButtons) {
+        button.addEventListener("click", async () => {
+          const prompt = installPrompt;
+          if (prompt === undefined) return;
+          await prompt.prompt();
+          await prompt.userChoice;
+          installPrompt = undefined;
+          setInstallAvailable(false);
+        });
+      }
+
+      if (
+        import.meta.env.PROD &&
+        "serviceWorker" in navigator &&
+        window.isSecureContext
+      ) {
+        window.addEventListener("load", () => {
+          void navigator.serviceWorker
+            .register("/sw.js", { scope: "/", updateViaCache: "none" })
+            .then(() => navigator.serviceWorker.ready)
+            .then((registration) => {
+              registration.active?.postMessage({
+                type: "CACHE_CURRENT_PAGE",
+                url: window.location.href,
+              });
+            })
+            .catch(() => {
+              // The website remains fully usable when service workers are
+              // unavailable or blocked by browser policy.
+            });
+        });
       }
     </script>
     <main id="main"><slot /></main>

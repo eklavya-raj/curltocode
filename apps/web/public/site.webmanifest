@@ -1,12 +1,33 @@
 {
   "name": "CurlToCode",
   "short_name": "CurlToCode",
+  "id": "/",
   "description": "Convert cURL commands to code and code back to cURL, entirely in your browser.",
   "start_url": "/",
   "scope": "/",
+  "lang": "en",
+  "dir": "ltr",
   "display": "standalone",
   "background_color": "#0d110e",
   "theme_color": "#0d110e",
+  "categories": ["developer", "productivity", "utilities"],
+  "shortcuts": [
+    {
+      "name": "cURL to code",
+      "short_name": "cURL to code",
+      "url": "/"
+    },
+    {
+      "name": "Code to cURL",
+      "short_name": "Code to cURL",
+      "url": "/javascript-to-curl"
+    },
+    {
+      "name": "All converters",
+      "short_name": "Converters",
+      "url": "/converters"
+    }
+  ],
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },

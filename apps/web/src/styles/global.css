@@ -164,6 +164,48 @@ a {
   height: 18px;
   fill: currentColor;
 }
+.pwa-install {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  padding: 0 11px;
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.pwa-install[hidden] {
+  display: none;
+}
+.pwa-install:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.pwa-install-icon {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+.pwa-install-menu-item {
+  display: none;
+}
+.pwa-install-menu {
+  width: 100%;
+  justify-content: flex-start;
+  border-color: transparent;
+  padding-inline: 8px;
+  font-size: 0.95rem;
+}
 .nav-toggle {
   display: none;
   width: 38px;
@@ -573,6 +615,7 @@ h1 {
 .dependency-note code {
   color: var(--ink);
   font-family: var(--font-mono);
+  overflow-wrap: anywhere;
 }
 .status {
   min-height: 42px;
@@ -707,6 +750,9 @@ h1 {
   font-family: var(--font-mono);
   color: var(--ink);
 }
+.content-section :where(p, li, dd) code {
+  overflow-wrap: anywhere;
+}
 .example {
   max-width: 900px;
   overflow-x: auto;
@@ -791,6 +837,11 @@ h1 {
   margin-right: 6px;
   color: var(--line);
 }
+.breadcrumbs li {
+  display: inline-flex;
+  align-items: baseline;
+  white-space: nowrap;
+}
 .breadcrumbs a {
   color: var(--muted);
 }
@@ -798,8 +849,30 @@ h1 {
   color: var(--accent);
 }
 
+.examples-intro {
+  margin: 0;
+}
+.examples-section {
+  margin-bottom: 64px;
+}
 .example-block {
-  margin-top: 34px;
+  margin-top: 40px;
+  border-top: 1px solid var(--line);
+  padding-top: 30px;
+}
+.example-block h3 {
+  margin: 0 0 8px;
+  font-size: 1.1rem;
+  line-height: 1.35;
+}
+.example-block .example-summary {
+  margin: 0 0 20px;
+}
+.converter-content > .shell > h2 {
+  margin-top: 52px;
+}
+.converter-content > .shell > p {
+  margin: 0 0 14px;
 }
 .example-pair {
   display: grid;
@@ -812,7 +885,7 @@ h1 {
   min-width: 0;
 }
 .example-pair figcaption {
-  margin-bottom: 6px;
+  margin-bottom: 9px;
   color: var(--muted);
   font: 700 0.7rem/1 var(--font-mono);
   letter-spacing: 0.08em;
@@ -946,24 +1019,49 @@ h1 {
 
 .converter-index {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 26px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.converter-index-item h2 {
+.converter-group + .converter-group {
+  margin-top: 64px;
+  border-top: 1px solid var(--line);
+  padding-top: 54px;
+}
+.converter-group-intro {
+  margin: 0 0 26px;
+}
+.converter-index-item {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  padding: 20px;
+}
+.converter-index-item h3 {
   margin: 0 0 8px;
   font-size: 1.25rem;
+  line-height: 1.35;
 }
-.converter-index-item h2 a {
+.converter-index-item h3 a {
   text-decoration: none;
+}
+.converter-index-item h3 a:hover {
+  color: var(--accent);
+}
+.converter-index-item > p {
+  flex: 1;
+  margin: 0;
 }
 .converter-client-list {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin: 12px 0 0;
+  margin: 18px 0 0;
   padding: 0;
   list-style: none;
 }
@@ -1030,15 +1128,36 @@ h1 {
   text-decoration: none;
 }
 
+@media (max-width: 980px) {
+  .converter-index {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .nav-links {
+    display: none;
+  }
+  .nav-toggle {
+    display: inline-grid;
+  }
+  .site-menu:not([hidden]) {
+    display: block;
+  }
+  .pwa-install-header {
+    display: none;
+  }
+  .pwa-install-menu-item:has(.pwa-install:not([hidden])) {
+    display: block;
+  }
+}
+
 @media (max-width: 760px) {
   .shell {
     width: min(100% - 20px, 1180px);
   }
   .hero {
     padding-top: 42px;
-  }
-  .nav-links {
-    display: none;
   }
   .nav-actions {
     gap: 8px;
@@ -1050,12 +1169,6 @@ h1 {
   }
   .github-star span {
     display: none;
-  }
-  .nav-toggle {
-    display: inline-grid;
-  }
-  .site-menu:not([hidden]) {
-    display: block;
   }
   .converter-toolbar {
     align-items: stretch;
@@ -1085,6 +1198,17 @@ h1 {
   }
   .example-pair {
     grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .converter-group + .converter-group {
+    margin-top: 48px;
+    padding-top: 42px;
+  }
+  .converter-index {
+    grid-template-columns: 1fr;
+  }
+  .converter-index-item {
+    padding: 18px;
   }
 }
 

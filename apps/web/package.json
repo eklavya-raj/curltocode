@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "assets": "node scripts/generate-assets.mjs",
-    "build": "astro build",
+    "build": "astro build && node scripts/generate-pwa.mjs",
     "dev": "astro dev",
     "preview": "astro preview",
     "typecheck": "astro check"

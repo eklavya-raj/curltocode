@@ -267,6 +267,170 @@ test("keeps the converter usable without horizontal overflow on mobile", async (
   expect(hasOverflow).toBe(false);
 });
 
+test("keeps converter groups and cards visually separated", async ({
+  page,
+}) => {
+  await page.goto("/converters");
+
+  const groups = page.locator(".converter-group");
+  const cards = page.locator(".converter-index-item");
+  await expect(groups).toHaveCount(2);
+  await expect(cards).toHaveCount(12);
+
+  const [forwardBox, reverseBox] = await Promise.all([
+    groups.first().boundingBox(),
+    groups.last().boundingBox(),
+  ]);
+  expect(forwardBox).not.toBeNull();
+  expect(reverseBox).not.toBeNull();
+  const minimumGroupGap =
+    (page.viewportSize()?.width ?? Number.POSITIVE_INFINITY) <= 760 ? 48 : 54;
+  expect(
+    (reverseBox?.y ?? 0) - ((forwardBox?.y ?? 0) + (forwardBox?.height ?? 0)),
+  ).toBeGreaterThanOrEqual(minimumGroupGap);
+
+  const cardSurface = await cards.first().evaluate((card) => {
+    const style = getComputedStyle(card);
+    return {
+      borderWidth: Number.parseFloat(style.borderTopWidth),
+      paddingTop: Number.parseFloat(style.paddingTop),
+    };
+  });
+  expect(cardSurface.borderWidth).toBeGreaterThanOrEqual(1);
+  expect(cardSurface.paddingTop).toBeGreaterThanOrEqual(18);
+  await expect(groups.first().getByRole("heading", { level: 3 })).toHaveCount(
+    9,
+  );
+});
+
+test("gives generated examples readable spacing and mobile breadcrumbs", async ({
+  page,
+}) => {
+  await page.goto("/javascript-to-curl/fetch");
+
+  const block = page.locator(".example-block").first();
+  const heading = block.getByRole("heading", { level: 3 });
+  const summary = block.locator(".example-summary");
+  const caption = block.locator("figcaption").first();
+  const code = block.locator("pre").first();
+  const [headingBox, summaryBox, captionBox, codeBox] = await Promise.all([
+    heading.boundingBox(),
+    summary.boundingBox(),
+    caption.boundingBox(),
+    code.boundingBox(),
+  ]);
+  expect(headingBox).not.toBeNull();
+  expect(summaryBox).not.toBeNull();
+  expect(captionBox).not.toBeNull();
+  expect(codeBox).not.toBeNull();
+  expect(
+    (summaryBox?.y ?? 0) - ((headingBox?.y ?? 0) + (headingBox?.height ?? 0)),
+  ).toBeGreaterThanOrEqual(8);
+  expect(
+    (captionBox?.y ?? 0) - ((summaryBox?.y ?? 0) + (summaryBox?.height ?? 0)),
+  ).toBeGreaterThanOrEqual(18);
+  expect(
+    (codeBox?.y ?? 0) - ((captionBox?.y ?? 0) + (captionBox?.height ?? 0)),
+  ).toBeGreaterThanOrEqual(8);
+
+  const lastExample = page.locator(".example-block").last();
+  const firstContentHeading = page
+    .locator(".converter-content > .shell > h2")
+    .first();
+  const [lastExampleBox, firstContentHeadingBox] = await Promise.all([
+    lastExample.boundingBox(),
+    firstContentHeading.boundingBox(),
+  ]);
+  expect(lastExampleBox).not.toBeNull();
+  expect(firstContentHeadingBox).not.toBeNull();
+  expect(
+    (firstContentHeadingBox?.y ?? 0) -
+      ((lastExampleBox?.y ?? 0) + (lastExampleBox?.height ?? 0)),
+  ).toBeGreaterThanOrEqual(56);
+
+  const contentRhythm = await page
+    .locator(".converter-content > .shell")
+    .evaluate((shell) => {
+      const directChildren = Array.from(shell.children);
+      const contentHeadings = directChildren.filter(
+        (element) => element.tagName === "H2",
+      );
+      const laterHeading = contentHeadings[1];
+      const previousParagraph = laterHeading?.previousElementSibling;
+      const consecutiveParagraph = directChildren.find(
+        (element) =>
+          element.tagName === "P" &&
+          element.previousElementSibling?.tagName === "P",
+      );
+      const previousConsecutiveParagraph =
+        consecutiveParagraph?.previousElementSibling;
+
+      const gapBetween = (first?: Element | null, second?: Element | null) => {
+        if (
+          first === undefined ||
+          first === null ||
+          second === undefined ||
+          second === null
+        ) {
+          return null;
+        }
+        return (
+          second.getBoundingClientRect().top -
+          first.getBoundingClientRect().bottom
+        );
+      };
+
+      return {
+        headingGap: gapBetween(previousParagraph, laterHeading),
+        paragraphGap: gapBetween(
+          previousConsecutiveParagraph,
+          consecutiveParagraph,
+        ),
+      };
+    });
+  expect(contentRhythm.headingGap).not.toBeNull();
+  expect(contentRhythm.headingGap ?? 0).toBeGreaterThanOrEqual(48);
+  expect(contentRhythm.paragraphGap).not.toBeNull();
+  expect(contentRhythm.paragraphGap ?? 0).toBeGreaterThanOrEqual(14);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const currentCrumb = page.locator(".breadcrumbs li").last();
+  const crumbBox = await currentCrumb.boundingBox();
+  expect(crumbBox).not.toBeNull();
+  expect(crumbBox?.height ?? Number.POSITIVE_INFINITY).toBeLessThan(25);
+  const hasOverflow = await page.evaluate(
+    () =>
+      document.documentElement.scrollWidth >
+      document.documentElement.clientWidth,
+  );
+  expect(hasOverflow).toBe(false);
+});
+
+test("collapses crowded navigation at tablet width", async ({ page }) => {
+  await page.setViewportSize({ width: 768, height: 900 });
+  await page.goto("/converters");
+
+  await expect(page.locator(".nav-links")).toBeHidden();
+  await expect(
+    page.getByRole("button", { name: "Open navigation menu" }),
+  ).toBeVisible();
+});
+
+test("wraps long library coordinates without mobile overflow", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/curl-to-java/apache-httpclient");
+
+  await expect(page.locator(".dependency-note")).toBeVisible();
+  const hasOverflow = await page.evaluate(
+    () =>
+      document.documentElement.scrollWidth >
+      document.documentElement.clientWidth,
+  );
+  expect(hasOverflow).toBe(false);
+});
+
 test("converts a static Axios call and loads its AST parser on demand", async ({
   page,
 }) => {
@@ -503,18 +667,145 @@ test("serves installable app metadata and a dedicated maskable icon", async ({
   const manifestResponse = await request.get("/site.webmanifest");
   expect(manifestResponse.ok()).toBe(true);
   const manifest = (await manifestResponse.json()) as {
+    readonly id: string;
     readonly name: string;
+    readonly display: string;
+    readonly start_url: string;
+    readonly shortcuts: readonly { readonly url: string }[];
     readonly icons: readonly {
       readonly src: string;
       readonly purpose?: string;
     }[];
   };
   expect(manifest.name).toBe("CurlToCode");
+  expect(manifest.id).toBe("/");
+  expect(manifest.start_url).toBe("/");
+  expect(manifest.display).toBe("standalone");
+  expect(manifest.shortcuts.map((shortcut) => shortcut.url)).toEqual([
+    "/",
+    "/javascript-to-curl",
+    "/converters",
+  ]);
   const maskable = manifest.icons.find((icon) => icon.purpose === "maskable");
   expect(maskable?.src).toBe("/icon-maskable-512.png");
   const iconResponse = await request.get(maskable?.src ?? "/missing");
   expect(iconResponse.ok()).toBe(true);
   expect(iconResponse.headers()["content-type"]).toBe("image/png");
+});
+
+test("offers the native PWA install prompt only when available", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const installButtons = page.locator("[data-pwa-install]");
+  await expect(installButtons).toHaveCount(2);
+  await expect(installButtons.first()).toHaveAttribute("hidden", "");
+  await expect(installButtons.last()).toHaveAttribute("hidden", "");
+
+  await page.evaluate(() => {
+    const state = window as Window & { installPromptCalls?: number };
+    state.installPromptCalls = 0;
+    const event = new Event("beforeinstallprompt", { cancelable: true });
+    Object.defineProperties(event, {
+      prompt: {
+        value: async () => {
+          state.installPromptCalls = (state.installPromptCalls ?? 0) + 1;
+        },
+      },
+      userChoice: {
+        value: Promise.resolve({ outcome: "accepted", platform: "web" }),
+      },
+    });
+    window.dispatchEvent(event);
+  });
+
+  if ((page.viewportSize()?.width ?? 0) <= 900) {
+    await page.getByRole("button", { name: "Open navigation menu" }).click();
+  } else {
+    await page.setViewportSize({ width: 901, height: 900 });
+    const headerLayout = await page.locator(".site-nav").evaluate((nav) => {
+      const brand = nav.querySelector(".brand")?.getBoundingClientRect();
+      const actions = nav
+        .querySelector(".nav-actions")
+        ?.getBoundingClientRect();
+      return {
+        overlaps:
+          brand !== undefined && actions !== undefined
+            ? brand.right > actions.left
+            : true,
+        pageOverflows:
+          document.documentElement.scrollWidth >
+          document.documentElement.clientWidth,
+      };
+    });
+    expect(headerLayout.overlaps).toBe(false);
+    expect(headerLayout.pageOverflows).toBe(false);
+  }
+  const visibleInstallButton = page.locator("[data-pwa-install]:visible");
+  await expect(visibleInstallButton).toHaveCount(1);
+  await visibleInstallButton.click();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as Window & { installPromptCalls?: number })
+            .installPromptCalls,
+      ),
+    )
+    .toBe(1);
+  await expect(installButtons.first()).toHaveAttribute("hidden", "");
+  await expect(installButtons.last()).toHaveAttribute("hidden", "");
+});
+
+test("generates a versioned service worker for the production app", async ({
+  request,
+}) => {
+  const response = await request.get(`${productionBaseUrl}/sw.js`);
+  expect(response.ok()).toBe(true);
+  expect(response.headers()["content-type"]).toContain("javascript");
+  const source = await response.text();
+  expect(source).toMatch(/precache-[a-f0-9]{16}/u);
+  expect(source).toContain('"/converters"');
+  expect(source).toContain('url.pathname.startsWith("/_astro/")');
+  expect(source).toContain('request.method !== "GET"');
+});
+
+test("keeps a visited converter usable offline", async ({ page, context }) => {
+  await page.goto(`${productionBaseUrl}/curl-to-python/requests`);
+  await page.evaluate(async () => {
+    await navigator.serviceWorker.ready;
+  });
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const cached = await caches.match("/curl-to-python/requests");
+        return cached?.ok ?? false;
+      }),
+    )
+    .toBe(true);
+
+  await context.setOffline(true);
+  try {
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(
+      page.getByRole("heading", {
+        level: 1,
+        name: "Convert cURL to Python Requests",
+      }),
+    ).toBeVisible();
+    await page
+      .locator('[aria-label="cURL and code converter"][data-ready="true"]')
+      .waitFor();
+    await page
+      .getByLabel("cURL command")
+      .fill("curl 'https://api.example.com/offline'");
+    await expect(page.getByLabel("Converted output")).toHaveValue(
+      /requests\.get/u,
+    );
+  } finally {
+    await context.setOffline(false);
+  }
 });
 
 test("serves both favicon formats, including the conventional /favicon.ico", async ({

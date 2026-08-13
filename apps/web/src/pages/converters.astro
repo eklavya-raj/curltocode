@@ -66,69 +66,73 @@ function clientsFor(parent: string): typeof converters {
 
   <section class="content-section">
     <div class="shell">
-      <h2>cURL to code</h2>
-      <p>
-        Generate idiomatic client code while preserving the request's methods,
-        headers, query parameters, authentication, and body semantics.
-      </p>
-      <ul class="converter-index">
-        {
-          forwardHubs.map((hub) => {
-            const clients = clientsFor(hub.data.slug);
-            return (
-              <li class="converter-index-item">
-                <h2>
-                  <a href={`/${hub.data.slug}`}>{hub.data.heading}</a>
-                </h2>
-                <p>{hub.data.lede}</p>
-                {clients.length > 0 && (
-                  <ul class="converter-client-list">
-                    {clients.map((client) => (
-                      <li>
-                        <a href={`/${client.data.slug}`}>
-                          {client.data.clientLabel}
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </li>
-            );
-          })
-        }
-      </ul>
+      <section class="converter-group" aria-labelledby="forward-converters">
+        <h2 id="forward-converters">cURL to code</h2>
+        <p class="converter-group-intro">
+          Generate idiomatic client code while preserving the request's methods,
+          headers, query parameters, authentication, and body semantics.
+        </p>
+        <ul class="converter-index">
+          {
+            forwardHubs.map((hub) => {
+              const clients = clientsFor(hub.data.slug);
+              return (
+                <li class="converter-index-item">
+                  <h3>
+                    <a href={`/${hub.data.slug}`}>{hub.data.heading}</a>
+                  </h3>
+                  <p>{hub.data.lede}</p>
+                  {clients.length > 0 && (
+                    <ul class="converter-client-list">
+                      {clients.map((client) => (
+                        <li>
+                          <a href={`/${client.data.slug}`}>
+                            {client.data.clientLabel}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              );
+            })
+          }
+        </ul>
+      </section>
 
-      <h2>Code to cURL</h2>
-      <p>
-        Parse supported static request code without executing it, then generate
-        a readable cURL command from the recovered request.
-      </p>
-      <ul class="converter-index">
-        {
-          reverseHubs.map((hub) => {
-            const clients = clientsFor(hub.data.slug);
-            return (
-              <li class="converter-index-item">
-                <h3>
-                  <a href={`/${hub.data.slug}`}>{hub.data.heading}</a>
-                </h3>
-                <p>{hub.data.lede}</p>
-                {clients.length > 0 && (
-                  <ul class="converter-client-list">
-                    {clients.map((client) => (
-                      <li>
-                        <a href={`/${client.data.slug}`}>
-                          {client.data.clientLabel}
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </li>
-            );
-          })
-        }
-      </ul>
+      <section class="converter-group" aria-labelledby="reverse-converters">
+        <h2 id="reverse-converters">Code to cURL</h2>
+        <p class="converter-group-intro">
+          Parse supported static request code without executing it, then
+          generate a readable cURL command from the recovered request.
+        </p>
+        <ul class="converter-index">
+          {
+            reverseHubs.map((hub) => {
+              const clients = clientsFor(hub.data.slug);
+              return (
+                <li class="converter-index-item">
+                  <h3>
+                    <a href={`/${hub.data.slug}`}>{hub.data.heading}</a>
+                  </h3>
+                  <p>{hub.data.lede}</p>
+                  {clients.length > 0 && (
+                    <ul class="converter-client-list">
+                      {clients.map((client) => (
+                        <li>
+                          <a href={`/${client.data.slug}`}>
+                            {client.data.clientLabel}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              );
+            })
+          }
+        </ul>
+      </section>
     </div>
   </section>
 </BaseLayout>

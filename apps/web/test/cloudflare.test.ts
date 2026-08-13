@@ -43,6 +43,9 @@ describe("Cloudflare Workers Static Assets deployment", () => {
     );
     expect(headers).toContain("/_astro/*");
     expect(headers).toContain("max-age=31536000, immutable");
+    expect(headers).toContain("/sw.js");
+    expect(headers).toContain("Cache-Control: no-cache, no-store");
+    expect(headers).toContain("Service-Worker-Allowed: /");
   });
 
   it("publishes a standards-compatible robots policy and canonical sitemap", () => {

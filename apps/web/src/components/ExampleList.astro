@@ -35,71 +35,73 @@ const highlighted = await Promise.all(
 );
 ---
 
-<h2>
-  {
-    direction === "code-to-curl"
-      ? `${clientLabel} to cURL examples`
-      : `${languageLabel} ${clientLabel} examples`
-  }
-</h2>
-<p>
-  {
-    direction === "code-to-curl"
-      ? "Every cURL command below is parsed from the source beside it using the same conversion engine as the interactive tool."
-      : "Every snippet below is produced by the same converter that powers this page, so it always matches what the tool emits today."
-  }
-</p>
+<section class="examples-section" aria-labelledby="examples-heading">
+  <h2 id="examples-heading">
+    {
+      direction === "code-to-curl"
+        ? `${clientLabel} to cURL examples`
+        : `${languageLabel} ${clientLabel} examples`
+    }
+  </h2>
+  <p class="examples-intro">
+    {
+      direction === "code-to-curl"
+        ? "Every cURL command below is parsed from the source beside it using the same conversion engine as the interactive tool."
+        : "Every snippet below is produced by the same converter that powers this page, so it always matches what the tool emits today."
+    }
+  </p>
 
-{
-  highlighted.map((example) => (
-    <div class="example-block">
-      <h3 id={example.id}>{example.heading}</h3>
-      <p>{example.summary}</p>
-      <div class="example-pair">
-        {direction === "code-to-curl" ? (
-          <>
-            <figure>
-              <figcaption>
-                {languageLabel} · {clientLabel}
-              </figcaption>
-              {example.codeHtml === undefined ? (
-                <p class="limitation">
-                  <strong>Not supported:</strong> {example.limitation}
-                </p>
-              ) : (
-                <Fragment set:html={example.codeHtml} />
-              )}
-            </figure>
-            <figure>
-              <figcaption>cURL</figcaption>
-              {example.codeHtml === undefined ? (
-                <p class="limitation">No cURL command was generated.</p>
-              ) : (
+  {
+    highlighted.map((example) => (
+      <section class="example-block" aria-labelledby={example.id}>
+        <h3 id={example.id}>{example.heading}</h3>
+        <p class="example-summary">{example.summary}</p>
+        <div class="example-pair">
+          {direction === "code-to-curl" ? (
+            <>
+              <figure>
+                <figcaption>
+                  {languageLabel} · {clientLabel}
+                </figcaption>
+                {example.codeHtml === undefined ? (
+                  <p class="limitation">
+                    <strong>Not supported:</strong> {example.limitation}
+                  </p>
+                ) : (
+                  <Fragment set:html={example.codeHtml} />
+                )}
+              </figure>
+              <figure>
+                <figcaption>cURL</figcaption>
+                {example.codeHtml === undefined ? (
+                  <p class="limitation">No cURL command was generated.</p>
+                ) : (
+                  <Fragment set:html={example.curlHtml} />
+                )}
+              </figure>
+            </>
+          ) : (
+            <>
+              <figure>
+                <figcaption>cURL</figcaption>
                 <Fragment set:html={example.curlHtml} />
-              )}
-            </figure>
-          </>
-        ) : (
-          <>
-            <figure>
-              <figcaption>cURL</figcaption>
-              <Fragment set:html={example.curlHtml} />
-            </figure>
-            <figure>
-              <figcaption>
-                {languageLabel} · {clientLabel}
-              </figcaption>
-              {example.codeHtml === undefined ? (
-                <p class="limitation">
-                  <strong>Not supported:</strong> {example.limitation}
-                </p>
-              ) : (
-                <Fragment set:html={example.codeHtml} />
-              )}
-            </figure>
-          </>
-        )}
-      </div>
-    </div>
-  ))
-}
+              </figure>
+              <figure>
+                <figcaption>
+                  {languageLabel} · {clientLabel}
+                </figcaption>
+                {example.codeHtml === undefined ? (
+                  <p class="limitation">
+                    <strong>Not supported:</strong> {example.limitation}
+                  </p>
+                ) : (
+                  <Fragment set:html={example.codeHtml} />
+                )}
+              </figure>
+            </>
+          )}
+        </div>
+      </section>
+    ))
+  }
+</section>
