@@ -7,6 +7,7 @@ import type {
 } from "curltocode";
 
 import TargetIcon from "./TargetIcon";
+import type { SourceLanguage } from "./TargetIcon";
 
 interface SelectOption<Value extends string> {
   readonly label: string;
@@ -31,7 +32,17 @@ interface ClientSelectProps {
   readonly disabled?: boolean;
 }
 
-type TargetSelectProps = LanguageSelectProps | ClientSelectProps;
+interface SourceSelectProps {
+  readonly kind: "source";
+  readonly label: string;
+  readonly options: readonly SelectOption<SourceLanguage>[];
+  readonly value: SourceLanguage;
+  readonly onValueChange: (value: SourceLanguage) => void;
+  readonly disabled?: boolean;
+}
+
+type TargetSelectProps =
+  LanguageSelectProps | ClientSelectProps | SourceSelectProps;
 
 interface SelectControlProps<Value extends string> {
   readonly disabled: boolean;
@@ -138,6 +149,19 @@ export default function TargetSelect(props: TargetSelectProps) {
         onValueChange={props.onValueChange}
         options={props.options}
         renderIcon={(value) => <TargetIcon kind="language" value={value} />}
+        value={props.value}
+      />
+    );
+  }
+
+  if (props.kind === "source") {
+    return (
+      <SelectControl
+        disabled={props.disabled ?? false}
+        label={props.label}
+        onValueChange={props.onValueChange}
+        options={props.options}
+        renderIcon={(value) => <TargetIcon kind="source" value={value} />}
         value={props.value}
       />
     );

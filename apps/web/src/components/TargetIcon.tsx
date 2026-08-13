@@ -63,15 +63,31 @@ const clientIcons: Record<Client, IconDefinition> = {
   ureq: { type: "monogram", text: "Ur" },
 };
 
+/**
+ * Reverse conversion reads a source language rather than targeting one, and its
+ * list is shorter than the generator registry: TypeScript is read by the
+ * JavaScript parser, so the two share an entry.
+ */
+export type SourceLanguage = "auto" | "javascript" | "python";
+
+const sourceIcons: Record<SourceLanguage, IconDefinition> = {
+  auto: { type: "monogram", text: "A" },
+  javascript: { type: "brand", icon: siJavascript },
+  python: { type: "brand", icon: siPython },
+};
+
 type TargetIconProps =
   | { readonly kind: "language"; readonly value: Language }
-  | { readonly kind: "client"; readonly value: Client };
+  | { readonly kind: "client"; readonly value: Client }
+  | { readonly kind: "source"; readonly value: SourceLanguage };
 
 export default function TargetIcon(props: TargetIconProps) {
   const definition =
     props.kind === "language"
       ? languageIcons[props.value]
-      : clientIcons[props.value];
+      : props.kind === "source"
+        ? sourceIcons[props.value]
+        : clientIcons[props.value];
 
   return (
     <span

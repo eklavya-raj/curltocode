@@ -112,6 +112,37 @@ test("reports dynamic Fetch expressions explicitly", async ({ page }) => {
   await expect(page.getByRole("alert")).toContainText("getHeaders()");
 });
 
+test("reads Python back to cURL and exposes a source language selector", async ({
+  page,
+}) => {
+  await openConverter(page);
+  await page.getByRole("button", { name: "Code → cURL" }).click();
+
+  const source = page.getByRole("combobox", { name: "Source", exact: true });
+  await expect(source).toHaveAttribute("data-value", "auto");
+  // The forward target selectors do not apply when reading code back.
+  await expect(page.getByRole("combobox", { name: "Language" })).toHaveCount(0);
+
+  await page
+    .getByLabel("JavaScript, TypeScript, or Python request code")
+    .fill(
+      `import requests\nrequests.post("https://api.example.com/py", json={"name": "Ada"}, headers={"Authorization": "Bearer tok"})`,
+    );
+  await expect(page.getByLabel("Converted output")).toHaveValue(/-X POST/u);
+  await expect(page.getByLabel("Converted output")).toHaveValue(
+    /--data-raw '\{"name":"Ada"\}'/u,
+  );
+  await expect(page.getByText("Detected Requests.")).toBeVisible();
+
+  // Forcing a language must actually re-read the snippet.
+  await source.click();
+  await page.getByRole("option", { name: "Python", exact: true }).click();
+  await expect(source).toHaveAttribute("data-value", "python");
+  await expect(page.getByLabel("Converted output")).toHaveValue(
+    /curl 'https:\/\/api\.example\.com\/py'/u,
+  );
+});
+
 test("keeps the converter usable without horizontal overflow on mobile", async ({
   page,
 }) => {

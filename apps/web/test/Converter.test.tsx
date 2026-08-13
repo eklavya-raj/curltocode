@@ -39,6 +39,14 @@ async function chooseTarget(
   expect(trigger).toHaveAttribute("data-value", value);
 }
 
+async function chooseSource(user: User, option: string): Promise<void> {
+  const trigger = screen.getByRole("combobox", { name: "Source" });
+  trigger.focus();
+  await user.keyboard("{Enter}");
+  await screen.findByRole("listbox");
+  await user.click(await screen.findByRole("option", { name: option }));
+}
+
 beforeEach(() => {
   writeText.mockResolvedValue(undefined);
   readText.mockResolvedValue("");
@@ -303,6 +311,61 @@ describe("Converter", () => {
       ),
     ).toBeVisible();
     expect(valueOf("cURL command")).toBe(before);
+  });
+
+  it("offers a source language selector only in reverse mode", async () => {
+    const user = userEvent.setup();
+    render(<Converter />);
+    expect(screen.queryByRole("combobox", { name: "Source" })).toBeNull();
+    expect(screen.getByRole("combobox", { name: "Language" })).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Code → cURL" }));
+    expect(screen.getByRole("combobox", { name: "Source" })).toHaveAttribute(
+      "data-value",
+      "auto",
+    );
+    // The forward target selectors have no meaning when reading code back.
+    expect(screen.queryByRole("combobox", { name: "Language" })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Client" })).toBeNull();
+  });
+
+  it("converts Python once the source language is chosen explicitly", async () => {
+    const user = userEvent.setup();
+    render(<Converter />);
+    await user.click(screen.getByRole("button", { name: "Code → cURL" }));
+    fireEvent.change(
+      screen.getByLabelText("JavaScript, TypeScript, or Python request code"),
+      {
+        target: {
+          value: `requests.get("https://api.example.com/py", headers={"Accept": "application/json"})`,
+        },
+      },
+    );
+    await waitFor(() =>
+      expect(valueOf("Converted output")).toContain(
+        "curl 'https://api.example.com/py'",
+      ),
+    );
+    expect(screen.getByText("Detected Requests.")).toBeInTheDocument();
+
+    await chooseSource(user, "Python");
+    await waitFor(() =>
+      expect(valueOf("Converted output")).toContain(
+        "curl 'https://api.example.com/py'",
+      ),
+    );
+  });
+
+  it("re-reads the same snippet when the source language changes", async () => {
+    const user = userEvent.setup();
+    render(<Converter />);
+    await user.click(screen.getByRole("button", { name: "Code → cURL" }));
+    // The default snippet is JavaScript, so forcing Python must fail loudly
+    // rather than quietly falling back to a parser that would succeed.
+    await chooseSource(user, "Python");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /No supported Requests, HTTPX, or aiohttp call was found/u,
+    );
   });
 
   it("visually masks secrets without mutating converter input or generated output", async () => {

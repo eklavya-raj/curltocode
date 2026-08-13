@@ -15,6 +15,7 @@ import {
 } from "curltocode";
 
 import RequestInspector from "./RequestInspector";
+import type { SourceLanguage } from "./TargetIcon";
 import TargetSelect from "./TargetSelect";
 
 type Mode = "curl-to-code" | "code-to-curl";
@@ -79,6 +80,18 @@ const clientLabels: Record<Client, string> = {
   ureq: "ureq",
 };
 
+/**
+ * Reverse conversion reads fewer languages than the registry targets, so this
+ * list is written out rather than derived. "Auto" is first because detection is
+ * right for nearly every paste; the explicit entries exist for the cases where
+ * a snippet is too short to classify, or is deliberately being tested.
+ */
+const SOURCE_OPTIONS: readonly { label: string; value: SourceLanguage }[] = [
+  { label: "Auto-detect", value: "auto" },
+  { label: "JavaScript / TypeScript", value: "javascript" },
+  { label: "Python", value: "python" },
+];
+
 const LANGUAGES = Array.from(
   new Set(supportedTargets.map(({ language }) => language)),
 );
@@ -124,6 +137,7 @@ export default function Converter({
   });
   const [feedback, setFeedback] = useState("");
   const [copied, setCopied] = useState(false);
+  const [sourceLanguage, setSourceLanguage] = useState<SourceLanguage>("auto");
 
   const availableClients = useMemo(
     () => clientsForLanguage(language),
@@ -237,7 +251,10 @@ export default function Converter({
         return;
       }
       try {
-        const parsed = await parseCode(input);
+        const parsed = await parseCode(
+          input,
+          sourceLanguage === "auto" ? undefined : sourceLanguage,
+        );
         if (cancelled) return;
         setReverseState({
           source: input,
@@ -261,7 +278,7 @@ export default function Converter({
     return () => {
       cancelled = true;
     };
-  }, [input, mode]);
+  }, [input, mode, sourceLanguage]);
 
   const conversion =
     mode === "curl-to-code"
@@ -369,7 +386,7 @@ export default function Converter({
           </button>
         </div>
         <div className="selectors">
-          {mode === "curl-to-code" && (
+          {mode === "curl-to-code" ? (
             <>
               <TargetSelect
                 kind="language"
@@ -387,6 +404,14 @@ export default function Converter({
                 disabled={availableClients.length < 2}
               />
             </>
+          ) : (
+            <TargetSelect
+              kind="source"
+              label="Source"
+              options={SOURCE_OPTIONS}
+              value={sourceLanguage}
+              onValueChange={setSourceLanguage}
+            />
           )}
         </div>
       </div>
