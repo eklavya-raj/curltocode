@@ -768,9 +768,14 @@ test("generates a versioned service worker for the production app", async ({
   expect(source).toContain('"/converters"');
   expect(source).toContain('url.pathname.startsWith("/_astro/")');
   expect(source).toContain('request.method !== "GET"');
+  expect(source).toContain('cache: "reload"');
+  expect(source).toContain("empty response body");
 });
 
 test("keeps a visited converter usable offline", async ({ page, context }) => {
+  // Routing disables Chromium's HTTP cache, so this test verifies the service
+  // worker's Cache Storage entries rather than passing due to browser caching.
+  await context.route("**/*", (route) => route.continue());
   await page.goto(`${productionBaseUrl}/curl-to-python/requests`);
   await page.evaluate(async () => {
     await navigator.serviceWorker.ready;
@@ -784,6 +789,30 @@ test("keeps a visited converter usable offline", async ({ page, context }) => {
       }),
     )
     .toBe(true);
+  const cachedAppModules = await page.evaluate(async () => {
+    const cacheName = (await caches.keys()).find((name) =>
+      name.startsWith("curltocode-precache-"),
+    );
+    if (cacheName === undefined) return [];
+    const cache = await caches.open(cacheName);
+    const requests = (await cache.keys()).filter((request) =>
+      new URL(request.url).pathname.startsWith("/_astro/"),
+    );
+    return Promise.all(
+      requests.map(async (request) => {
+        const response = await cache.match(request);
+        return {
+          path: new URL(request.url).pathname,
+          size:
+            response === undefined
+              ? 0
+              : (await response.arrayBuffer()).byteLength,
+        };
+      }),
+    );
+  });
+  expect(cachedAppModules.length).toBeGreaterThan(0);
+  expect(cachedAppModules.every(({ size }) => size > 0)).toBe(true);
 
   await context.setOffline(true);
   try {
@@ -804,7 +833,7 @@ test("keeps a visited converter usable offline", async ({ page, context }) => {
       /requests\.get/u,
     );
   } finally {
-    await context.setOffline(false);
+    await context.setOffline(false).catch(() => undefined);
   }
 });
 

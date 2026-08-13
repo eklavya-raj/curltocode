@@ -48,7 +48,7 @@ const precacheUrls = [
 ].sort();
 
 const revision = createHash("sha256")
-  .update("curltocode-pwa-v1\0")
+  .update("curltocode-pwa-v2\0")
   .update(JSON.stringify(precacheUrls))
   .update("\0")
   .update(
@@ -69,10 +69,33 @@ const PRECACHE_URLS = ${JSON.stringify(precacheUrls, null, 2)};
 const PRECACHE_PATHS = new Set(PRECACHE_URLS);
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(PRECACHE).then((cache) => cache.addAll(PRECACHE_URLS)),
-  );
+  event.waitUntil(precacheShell());
 });
+
+async function precacheShell() {
+  const cache = await caches.open(PRECACHE);
+  await Promise.all(
+    PRECACHE_URLS.map(async (url) => {
+      // Bypass the browser HTTP cache so Cache Storage always receives a full
+      // response body. Conditional responses can otherwise leave an install
+      // looking successful while its JavaScript entries are unusable offline.
+      const response = await fetch(
+        new Request(url, {
+          cache: "reload",
+          credentials: "same-origin",
+        }),
+      );
+      if (!response.ok) {
+        throw new Error(\`Unable to precache \${url}: HTTP \${response.status}\`);
+      }
+      const bodySize = (await response.clone().arrayBuffer()).byteLength;
+      if (bodySize === 0) {
+        throw new Error(\`Unable to precache \${url}: empty response body\`);
+      }
+      await cache.put(url, response);
+    }),
+  );
+}
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
@@ -134,13 +157,13 @@ async function navigationResponse(event) {
   }
 }
 
-async function cacheFirst(request) {
-  const cached = await caches.match(request);
+async function cacheFirst(request, path) {
+  const cached = await caches.match(path);
   if (cached !== undefined) return cached;
   const response = await fetch(request);
   if (response.ok) {
     const cache = await caches.open(PRECACHE);
-    await cache.put(request, response.clone());
+    await cache.put(path, response.clone());
   }
   return response;
 }
@@ -158,7 +181,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (url.pathname.startsWith("/_astro/") || PRECACHE_PATHS.has(url.pathname)) {
-    event.respondWith(cacheFirst(request));
+    event.respondWith(cacheFirst(request, url.pathname));
   }
 });
 
