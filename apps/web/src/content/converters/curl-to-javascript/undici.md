@@ -10,7 +10,7 @@ language: javascript
 client: undici
 languageLabel: JavaScript
 clientLabel: Undici
-order: 22
+order: 23
 faqs:
   - question: When should I choose Undici instead of the built-in fetch function?
     answer: Choose Undici when the code runs on Node.js and you want direct access to its high-performance request API, dispatcher composition, connection pooling, and ordered raw headers. Use Fetch when the same source must also run in a browser.

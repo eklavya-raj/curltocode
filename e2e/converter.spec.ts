@@ -11,8 +11,10 @@ const indexablePages = [
   ["/privacy", "Privacy Policy"],
   ["/terms", "Terms of Service"],
   ["/curl-to-csharp", "Convert cURL to C#"],
+  ["/curl-to-csharp/httpclient", "Convert cURL to C# HttpClient"],
   ["/curl-to-csharp/restsharp", "Convert cURL to C# RestSharp"],
   ["/curl-to-go", "Convert cURL to Go"],
+  ["/curl-to-go/nethttp", "Convert cURL to Go net/http"],
   ["/curl-to-go/resty", "Convert cURL to Go Resty"],
   ["/curl-to-java", "Convert cURL to Java"],
   ["/curl-to-java/apache-httpclient", "Convert cURL to Apache HttpClient 5"],
@@ -23,6 +25,7 @@ const indexablePages = [
   ["/curl-to-javascript/fetch", "Convert cURL to Fetch"],
   ["/curl-to-javascript/undici", "Convert cURL to JavaScript Undici"],
   ["/curl-to-php", "Convert cURL to PHP"],
+  ["/curl-to-php/curl", "Convert cURL to PHP cURL"],
   ["/curl-to-php/guzzle", "Convert cURL to PHP Guzzle"],
   ["/curl-to-python", "Convert cURL to Python"],
   ["/curl-to-python/aiohttp", "Convert cURL to Python aiohttp"],
@@ -30,9 +33,14 @@ const indexablePages = [
   ["/curl-to-python/requests", "Convert cURL to Python Requests"],
   ["/curl-to-ruby", "Convert cURL to Ruby"],
   ["/curl-to-ruby/faraday", "Convert cURL to Ruby Faraday"],
+  ["/curl-to-ruby/nethttp", "Convert cURL to Ruby Net::HTTP"],
   ["/curl-to-rust", "Convert cURL to Rust"],
+  ["/curl-to-rust/reqwest", "Convert cURL to Rust reqwest"],
   ["/curl-to-rust/ureq", "Convert cURL to Rust ureq"],
   ["/curl-to-typescript", "Convert cURL to TypeScript"],
+  ["/curl-to-typescript/axios", "Convert cURL to TypeScript Axios"],
+  ["/curl-to-typescript/fetch", "Convert cURL to TypeScript Fetch"],
+  ["/curl-to-typescript/undici", "Convert cURL to TypeScript Undici"],
 ] as const;
 
 async function openConverter(page: Page): Promise<void> {
