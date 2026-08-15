@@ -473,9 +473,9 @@ test("reports invalid cURL without executing the represented request", async ({
   await openConverter(page);
   await page
     .getByLabel("cURL command")
-    .fill("curl --compressed https://do-not-contact.invalid/private");
+    .fill("curl --netrc https://do-not-contact.invalid/private");
   await expect(page.getByRole("alert")).toContainText(
-    "Unsupported cURL option: --compressed",
+    "Unsupported cURL option: --netrc",
   );
   expect(representedRequests).toEqual([]);
 });

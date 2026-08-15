@@ -65,7 +65,7 @@ function generateHttpClient(request: HttpRequest): GeneratedCode {
   if (restricted !== undefined) {
     throw new GeneratorError(
       `java.net.http.HttpClient does not allow the ${restricted.name} request header to be set.`,
-      "GENERATOR_SHELL_LIMITATION",
+      "GENERATOR_CLIENT_LIMITATION",
     );
   }
   const publisher = bodyPublisher(request.body);

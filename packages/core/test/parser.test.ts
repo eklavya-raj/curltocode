@@ -329,12 +329,10 @@ describe("parseCurl", () => {
     expect(() => parseCurl("curl -H 'Accept: text/plain'")).toThrowError(
       expect.objectContaining({ code: "CURL_MISSING_URL" }),
     );
-    expect(() =>
-      parseCurl("curl --compressed https://example.com"),
-    ).toThrowError(
+    expect(() => parseCurl("curl --netrc https://example.com")).toThrowError(
       expect.objectContaining({
         code: "CURL_UNSUPPORTED_OPTION",
-        option: "--compressed",
+        option: "--netrc",
       }),
     );
     expect(() => parseCurl("curl -H Accept https://example.com")).toThrowError(
@@ -378,6 +376,123 @@ describe("parseCurl", () => {
       username: "ada",
       password: "",
     });
+  });
+
+  it("accepts the transfer options browsers and shells emit", () => {
+    // Every browser's "Copy as cURL" appends --compressed, so rejecting it made
+    // the most common way of obtaining a cURL command unusable.
+    const parsed = parseCurl(
+      "curl 'https://api.example.com/users' -H 'accept: application/json' --compressed",
+    );
+    expect(parsed.request.method).toBe("GET");
+    expect(parsed.request.headers).toEqual([
+      { name: "accept", value: "application/json" },
+    ]);
+    expect(parsed.warnings).toEqual([]);
+  });
+
+  it("ignores options that only change the local cURL process", () => {
+    for (const command of [
+      "curl -s https://example.com",
+      "curl -sS https://example.com",
+      "curl -fsSL https://example.com",
+      "curl -o out.json https://example.com",
+      "curl -so out.json https://example.com",
+      "curl --max-time 30 --retry 3 https://example.com",
+      "curl --write-out '%{http_code}' https://example.com",
+    ]) {
+      const parsed = parseCurl(command);
+      expect(parsed.request.url).toBe("https://example.com/");
+      expect(parsed.warnings).toEqual([]);
+    }
+    // -fsSL includes -L, which is a real request-level option.
+    expect(
+      request("curl -fsSL https://example.com").options.followRedirects,
+    ).toBe(true);
+  });
+
+  it("warns instead of silently dropping transport-level options", () => {
+    const parsed = parseCurl(
+      "curl -k --http2 -x http://proxy:8080 https://example.com",
+    );
+    expect(parsed.request.url).toBe("https://example.com/");
+    expect(parsed.warnings.map((warning) => warning.code)).toEqual([
+      "TRANSPORT_OPTION_IGNORED",
+      "TRANSPORT_OPTION_IGNORED",
+      "TRANSPORT_OPTION_IGNORED",
+    ]);
+    expect(parsed.warnings[0]?.message).toContain("-k");
+  });
+
+  it("maps -A and -e onto their request headers", () => {
+    const parsed = request(
+      "curl -A 'Mozilla/5.0' -e 'https://ref.example.com;auto' https://example.com",
+    );
+    expect(parsed.headers).toEqual([
+      { name: "User-Agent", value: "Mozilla/5.0" },
+      { name: "Referer", value: "https://ref.example.com" },
+    ]);
+  });
+
+  it("treats -I as a HEAD request", () => {
+    expect(request("curl -I https://example.com").method).toBe("HEAD");
+  });
+
+  it("expands --json into a body and both JSON headers", () => {
+    const parsed = request(`curl --json '{"a":1}' https://example.com`);
+    expect(parsed.method).toBe("POST");
+    expect(parsed.headers).toEqual([
+      { name: "Content-Type", value: "application/json" },
+      { name: "Accept", value: "application/json" },
+    ]);
+    expect(parsed.body).toMatchObject({ kind: "json", raw: '{"a":1}' });
+  });
+
+  it("moves -G data into the query string instead of the body", () => {
+    const parsed = request(
+      "curl -G -d 'tag=a' -d 'tag=b' --data-urlencode 'q=x y' https://example.com/search",
+    );
+    expect(parsed.method).toBe("GET");
+    expect(parsed.body).toBeUndefined();
+    expect(parsed.query).toEqual([
+      { name: "tag", value: "a" },
+      { name: "tag", value: "b" },
+      { name: "q", value: "x y" },
+    ]);
+  });
+
+  it("appends --url-query without disturbing the body", () => {
+    const parsed = request(
+      "curl --url-query 'q=x y' -d 'a=1' https://example.com/search",
+    );
+    expect(parsed.query).toEqual([{ name: "q", value: "x y" }]);
+    expect(parsed.body).toMatchObject({ kind: "form-urlencoded", raw: "a=1" });
+  });
+
+  it("treats -T as a PUT upload", () => {
+    const parsed = request("curl -T report.csv https://example.com/files");
+    expect(parsed.method).toBe("PUT");
+    expect(parsed.body).toMatchObject({
+      kind: "binary",
+      source: { kind: "file", path: "report.csv" },
+    });
+  });
+
+  it("keeps a horizontal tab inside a header value", () => {
+    // RFC 9110 permits HTAB in a field value.
+    expect(
+      request("curl -H 'X-Trace: a\tb' https://example.com").headers,
+    ).toEqual([{ name: "X-Trace", value: "a\tb" }]);
+  });
+
+  it("still rejects options that would change the request meaningfully", () => {
+    for (const option of ["--netrc", "--digest", "--data-ascii"]) {
+      expect(() =>
+        parseCurl(`curl ${option} https://example.com`),
+      ).toThrowError(
+        expect.objectContaining({ code: "CURL_UNSUPPORTED_OPTION" }),
+      );
+    }
   });
 
   it("does not crash unexpectedly for arbitrary token combinations", () => {

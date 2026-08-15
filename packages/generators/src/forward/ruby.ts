@@ -57,7 +57,7 @@ export class RubyGenerator implements CodeGenerator {
     if (request.options.followRedirects) {
       throw new GeneratorError(
         "Ruby Net::HTTP does not follow redirects automatically. Reissuing redirect responses requires application-specific policy, so curl -L cannot be converted safely.",
-        "GENERATOR_SHELL_LIMITATION",
+        "GENERATOR_CLIENT_LIMITATION",
       );
     }
     const requestClass = REQUEST_CLASSES[request.method];

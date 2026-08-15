@@ -88,7 +88,7 @@ export class RestSharpGenerator implements CodeGenerator {
     if (method === undefined) {
       throw new GeneratorError(
         `RestSharp does not expose a Method value for the ${request.method} method.`,
-        "GENERATOR_SHELL_LIMITATION",
+        "GENERATOR_CLIENT_LIMITATION",
       );
     }
     const headers = materializeHeaders(request, {

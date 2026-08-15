@@ -77,7 +77,10 @@ export interface HttpRequest {
 }
 
 export interface ParseWarning {
-  readonly code: "URL_FRAGMENT_IGNORED" | "JSON_CONTENT_TYPE_INVALID";
+  readonly code:
+    | "URL_FRAGMENT_IGNORED"
+    | "JSON_CONTENT_TYPE_INVALID"
+    | "TRANSPORT_OPTION_IGNORED";
   readonly message: string;
 }
 

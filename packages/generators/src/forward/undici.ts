@@ -84,7 +84,7 @@ export class UndiciGenerator implements CodeGenerator {
     if (request.method === "CONNECT") {
       throw new GeneratorError(
         "Undici's request API does not support the CONNECT method.",
-        "GENERATOR_SHELL_LIMITATION",
+        "GENERATOR_CLIENT_LIMITATION",
       );
     }
     if (
@@ -106,7 +106,7 @@ export class UndiciGenerator implements CodeGenerator {
     if (expect !== undefined) {
       throw new GeneratorError(
         "Undici does not support the Expect request header.",
-        "GENERATOR_SHELL_LIMITATION",
+        "GENERATOR_CLIENT_LIMITATION",
       );
     }
 

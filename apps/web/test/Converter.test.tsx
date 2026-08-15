@@ -203,9 +203,9 @@ describe("Converter", () => {
     render(<Converter />);
     const input = screen.getByLabelText("cURL command");
     await user.clear(input);
-    await user.type(input, "curl --compressed https://example.com");
+    await user.type(input, "curl --netrc https://example.com");
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Unsupported cURL option: --compressed",
+      "Unsupported cURL option: --netrc",
     );
     await user.click(screen.getByRole("button", { name: "Code → cURL" }));
     const codeInput = screen.getByLabelText(

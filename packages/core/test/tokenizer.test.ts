@@ -102,3 +102,51 @@ describe("tokenizeCurl", () => {
     );
   });
 });
+
+describe("ANSI-C quoting", () => {
+  it("decodes $'...' the way browsers emit copied headers", () => {
+    // Chrome, Firefox, and Safari switch to this form whenever a copied header
+    // value contains a quote, a newline, or a non-ASCII character.
+    expect(
+      values(String.raw`curl 'https://x.test/' -H $'accept: text/html'`),
+    ).toEqual(["curl", "https://x.test/", "-H", "accept: text/html"]);
+  });
+
+  it("decodes the escape sequences ANSI-C quoting defines", () => {
+    expect(values(String.raw`curl $'a\tb\nc\\d\'e'`)).toEqual([
+      "curl",
+      "a\tb\nc\\d'e",
+    ]);
+    expect(values(String.raw`curl $'\x41\102é\U0001F600'`)).toEqual([
+      "curl",
+      "ABé\u{1F600}",
+    ]);
+    expect(values(String.raw`curl $'\cA'`)).toEqual(["curl", ""]);
+  });
+
+  it("keeps an unrecognised escape verbatim, as bash does", () => {
+    expect(values(String.raw`curl $'a\zb'`)).toEqual(["curl", "a\\zb"]);
+  });
+
+  it('treats $"..." as an ordinary double-quoted string', () => {
+    expect(values(`curl $"https://x.test/"`)).toEqual([
+      "curl",
+      "https://x.test/",
+    ]);
+  });
+
+  it("leaves a bare dollar sign alone", () => {
+    expect(values(`curl 'https://x.test/' -H 'x: $HOME'`)).toEqual([
+      "curl",
+      "https://x.test/",
+      "-H",
+      "x: $HOME",
+    ]);
+  });
+
+  it("reports an unclosed ANSI-C quote as a single quote", () => {
+    expect(() => values(String.raw`curl $'broken`)).toThrowError(
+      expect.objectContaining({ code: "CURL_UNCLOSED_QUOTE" }),
+    );
+  });
+});

@@ -33,6 +33,15 @@ function hasControlCharacter(value: string): boolean {
   });
 }
 
+/**
+ * RFC 9110 permits horizontal tab inside a header field value, so a stricter
+ * control-character rule would reject requests that are valid on the wire.
+ * Cookie values keep the stricter rule because RFC 6265 excludes tab.
+ */
+function hasInvalidFieldValueCharacter(value: string): boolean {
+  return hasControlCharacter(value.replaceAll("\t", " "));
+}
+
 type ValueOptionKind =
   | "request"
   | "header"
@@ -43,7 +52,146 @@ type ValueOptionKind =
   | "form"
   | "user"
   | "cookie"
-  | "url";
+  | "url"
+  | "user-agent"
+  | "referer"
+  | "json"
+  | "url-query"
+  | "upload-file";
+
+/**
+ * Options that change only how the local cURL process behaves — its console
+ * output, retry loop, or timeouts — and leave the request on the wire
+ * unchanged. A generated snippet is a faithful representation of the request
+ * whether or not these are present, so they are accepted and dropped.
+ */
+const IGNORED_FLAGS: ReadonlySet<string> = new Set([
+  "-#",
+  "-4",
+  "-6",
+  "-J",
+  "-N",
+  "-O",
+  "-R",
+  "-S",
+  "-Z",
+  "-f",
+  "-g",
+  "-i",
+  "-s",
+  "-v",
+  "--basic",
+  "--create-dirs",
+  "--fail",
+  "--fail-early",
+  "--fail-with-body",
+  "--globoff",
+  "--include",
+  "--ipv4",
+  "--ipv6",
+  "--no-buffer",
+  "--no-keepalive",
+  "--no-progress-meter",
+  "--no-styled-output",
+  "--parallel",
+  "--parallel-immediate",
+  "--path-as-is",
+  "--progress-bar",
+  "--raw",
+  "--remote-header-name",
+  "--remote-name",
+  "--remote-time",
+  "--retry-connrefused",
+  "--show-error",
+  "--silent",
+  "--styled-output",
+  "--tcp-nodelay",
+  "--verbose",
+]);
+
+/**
+ * `--compressed` asks cURL to advertise and transparently decode compressed
+ * responses. Every client this project generates negotiates and decodes
+ * compression on its own, so the generated code already behaves this way.
+ */
+const TRANSPARENT_FLAGS: ReadonlySet<string> = new Set(["--compressed"]);
+
+/** Ignored options that consume the following argument. */
+const IGNORED_VALUE_OPTIONS: ReadonlySet<string> = new Set([
+  "-C",
+  "-D",
+  "-Y",
+  "-m",
+  "-o",
+  "-w",
+  "-y",
+  "--connect-timeout",
+  "--continue-at",
+  "--cookie-jar",
+  "--dump-header",
+  "--expect100-timeout",
+  "--happy-eyeballs-timeout-ms",
+  "--limit-rate",
+  "--max-filesize",
+  "--max-redirs",
+  "--max-time",
+  "--output",
+  "--retry",
+  "--retry-delay",
+  "--retry-max-time",
+  "--speed-limit",
+  "--speed-time",
+  "--stderr",
+  "--trace",
+  "--trace-ascii",
+  "--write-out",
+]);
+
+/**
+ * Options that do change how the request reaches the server but have no
+ * portable representation in the normalized model. Dropping them silently
+ * would misrepresent the request, so each one raises a parse warning.
+ */
+const WARNED_FLAGS: ReadonlyMap<string, string> = new Map([
+  ["-k", "TLS certificate verification was disabled"],
+  ["--insecure", "TLS certificate verification was disabled"],
+  ["--proxy-insecure", "proxy TLS certificate verification was disabled"],
+  ["--ssl-no-revoke", "TLS revocation checking was disabled"],
+  ["--http1.0", "a specific HTTP version was requested"],
+  ["--http1.1", "a specific HTTP version was requested"],
+  ["--http2", "a specific HTTP version was requested"],
+  ["--http2-prior-knowledge", "a specific HTTP version was requested"],
+  ["--http3", "a specific HTTP version was requested"],
+  ["--http3-only", "a specific HTTP version was requested"],
+  ["--tlsv1.2", "a specific TLS version was requested"],
+  ["--tlsv1.3", "a specific TLS version was requested"],
+]);
+
+const WARNED_VALUE_OPTIONS: ReadonlyMap<string, string> = new Map([
+  ["-x", "the request was routed through a proxy"],
+  ["--proxy", "the request was routed through a proxy"],
+  ["--preproxy", "the request was routed through a proxy"],
+  ["--socks4", "the request was routed through a proxy"],
+  ["--socks4a", "the request was routed through a proxy"],
+  ["--socks5", "the request was routed through a proxy"],
+  ["--socks5-hostname", "the request was routed through a proxy"],
+  ["--proxy-user", "proxy credentials were supplied"],
+  ["-E", "a client TLS certificate was supplied"],
+  ["--cert", "a client TLS certificate was supplied"],
+  ["--cert-type", "a client TLS certificate was supplied"],
+  ["--key", "a client TLS key was supplied"],
+  ["--key-type", "a client TLS key was supplied"],
+  ["--cacert", "a custom certificate authority was supplied"],
+  ["--capath", "a custom certificate authority was supplied"],
+  ["--pinnedpubkey", "a pinned public key was supplied"],
+  ["--ciphers", "a specific TLS cipher list was requested"],
+  ["--interface", "a specific local network interface was requested"],
+  ["--resolve", "a custom host resolution was supplied"],
+  ["--connect-to", "a custom connection target was supplied"],
+  ["--dns-servers", "custom DNS servers were supplied"],
+  ["--unix-socket", "the request was sent over a Unix domain socket"],
+  ["--abstract-unix-socket", "the request was sent over a Unix domain socket"],
+]);
 
 const VALUE_OPTIONS: ReadonlyMap<string, ValueOptionKind> = new Map([
   ["-X", "request"],
@@ -62,6 +210,14 @@ const VALUE_OPTIONS: ReadonlyMap<string, ValueOptionKind> = new Map([
   ["-b", "cookie"],
   ["--cookie", "cookie"],
   ["--url", "url"],
+  ["-A", "user-agent"],
+  ["--user-agent", "user-agent"],
+  ["-e", "referer"],
+  ["--referer", "referer"],
+  ["--json", "json"],
+  ["--url-query", "url-query"],
+  ["-T", "upload-file"],
+  ["--upload-file", "upload-file"],
 ] as const);
 
 function optionAndInlineValue(value: string): {
@@ -75,12 +231,72 @@ function optionAndInlineValue(value: string): {
       inline: value.slice(separator + 1),
     };
   }
-  for (const option of ["-X", "-H", "-d", "-F", "-u", "-b"] as const) {
+  for (const option of SHORT_VALUE_OPTIONS) {
     if (value.startsWith(option) && value.length > option.length) {
       return { option, inline: value.slice(option.length) };
     }
   }
   return { option: value };
+}
+
+/** Short options whose value may be attached directly, as in `-XPOST`. */
+const SHORT_VALUE_OPTIONS: readonly string[] = [
+  "-X",
+  "-H",
+  "-d",
+  "-F",
+  "-u",
+  "-b",
+  "-A",
+  "-e",
+  "-T",
+  "-o",
+  "-w",
+  "-m",
+  "-D",
+  "-C",
+  "-E",
+  "-x",
+  "-Y",
+  "-y",
+];
+
+const SHORT_BOOLEAN_FLAGS: ReadonlySet<string> = new Set(
+  "#46JNORSZfgisvkLIG".split(""),
+);
+
+/**
+ * Expand a clustered short-option token such as `-sS` or `-sLo out.txt`.
+ *
+ * cURL allows boolean short options to be written together, and treats the
+ * remainder of the cluster as the value of the first value-taking option it
+ * reaches. Expansion only starts when the leading character is itself a
+ * boolean flag, so `-XPOST` keeps its inline-value meaning.
+ */
+function expandShortCluster(token: string): readonly string[] | undefined {
+  if (token.length <= 2 || !token.startsWith("-") || token.startsWith("--")) {
+    return undefined;
+  }
+  if (!SHORT_BOOLEAN_FLAGS.has(token[1] ?? "")) return undefined;
+  const expanded: string[] = [];
+  for (let index = 1; index < token.length; index += 1) {
+    const character = token[index] ?? "";
+    if (SHORT_BOOLEAN_FLAGS.has(character)) {
+      expanded.push(`-${character}`);
+      continue;
+    }
+    if (SHORT_VALUE_OPTIONS.includes(`-${character}`)) {
+      const rest = token.slice(index + 1);
+      expanded.push(
+        rest.length === 0 ? `-${character}` : `-${character}${rest}`,
+      );
+      return expanded;
+    }
+    // An unrecognised character makes the whole cluster ambiguous; report the
+    // original token so the error names what the user actually wrote.
+    return undefined;
+  }
+  return expanded;
 }
 
 function requireValue(
@@ -108,7 +324,7 @@ function parseHeader(input: string): Header {
   }
   const name = input.slice(0, separator).trim();
   const value = input.slice(separator + 1).trimStart();
-  if (!HTTP_FIELD_NAME.test(name) || hasControlCharacter(value)) {
+  if (!HTTP_FIELD_NAME.test(name) || hasInvalidFieldValueCharacter(value)) {
     throw new CurlParseError(
       "CURL_INVALID_HEADER",
       `Invalid cURL header: ${input}`,
@@ -296,6 +512,23 @@ function fieldsFromFormFragment(fragment: string): readonly FormField[] {
   });
 }
 
+/**
+ * Reinterpret data arguments as query parameters, which is what `-G` and
+ * `--url-query` ask for. `--data-urlencode` values are encoded first so their
+ * escaping rules still apply, then decoded back into the model's plain pairs.
+ */
+function queryFromData(entries: readonly DataArgument[]): readonly FormField[] {
+  return entries.flatMap((entry) => {
+    if (entry.option !== "data-urlencode") {
+      return fieldsFromFormFragment(entry.value);
+    }
+    const encoded = parseUrlEncodedData(entry.value);
+    return encoded.field === undefined
+      ? fieldsFromFormFragment(encoded.raw)
+      : [encoded.field];
+  });
+}
+
 function buildBody(
   data: readonly DataArgument[],
   forms: readonly MultipartPart[],
@@ -412,31 +645,94 @@ export function parseCurl(input: string): CurlParseResult {
   let explicitMethod = false;
   let followRedirects = false;
   let url: string | undefined;
+  let dataAsQuery = false;
   const headers: Header[] = [];
   const cookies: Cookie[] = [];
   let auth: RequestAuth | undefined;
   const data: DataArgument[] = [];
+  const urlQuery: DataArgument[] = [];
   const forms: MultipartPart[] = [];
+  const warnings: ParseWarning[] = [];
+  const warnedOptions = new Set<string>();
+
+  const warnTransport = (option: string, effect: string): void => {
+    if (warnedOptions.has(option)) return;
+    warnedOptions.add(option);
+    warnings.push({
+      code: "TRANSPORT_OPTION_IGNORED",
+      message: `${option} was ignored: ${effect}, which the generated request cannot express.`,
+    });
+  };
+
+  /** Handle an option that never consumes a following argument. */
+  const applyBooleanOption = (option: string): boolean => {
+    if (option === "-L" || option === "--location") {
+      followRedirects = true;
+      return true;
+    }
+    if (option === "--location-trusted") {
+      followRedirects = true;
+      warnTransport(option, "credentials were forwarded to redirect targets");
+      return true;
+    }
+    if (option === "-I" || option === "--head") {
+      method = "HEAD";
+      explicitMethod = true;
+      return true;
+    }
+    if (option === "-G" || option === "--get") {
+      dataAsQuery = true;
+      return true;
+    }
+    if (IGNORED_FLAGS.has(option) || TRANSPARENT_FLAGS.has(option)) return true;
+    const warned = WARNED_FLAGS.get(option);
+    if (warned !== undefined) {
+      warnTransport(option, warned);
+      return true;
+    }
+    return false;
+  };
+
+  const setUrl = (value: string): void => {
+    if (url !== undefined)
+      throw new CurlParseError(
+        "CURL_MULTIPLE_URLS",
+        "Multiple request URLs are not supported.",
+      );
+    url = value;
+  };
 
   for (let index = 1; index < tokens.length; index += 1) {
     const token = tokens[index];
     if (token === undefined) continue;
     if (!token.value.startsWith("-") || token.value === "-") {
-      if (url !== undefined)
-        throw new CurlParseError(
-          "CURL_MULTIPLE_URLS",
-          "Multiple request URLs are not supported.",
-        );
-      url = token.value;
+      setUrl(token.value);
       continue;
     }
-    if (token.value === "-L" || token.value === "--location") {
-      followRedirects = true;
-      continue;
+    // A cluster's leading entries are always boolean; only its final entry can
+    // consume the next token, so it is handed to the normal option path.
+    const cluster = expandShortCluster(token.value);
+    let current = token.value;
+    if (cluster !== undefined) {
+      for (const entry of cluster.slice(0, -1)) {
+        if (!applyBooleanOption(entry))
+          throw new UnsupportedCurlOptionError(entry);
+      }
+      current = cluster.at(-1) ?? token.value;
     }
-    const { option, inline } = optionAndInlineValue(token.value);
+    if (applyBooleanOption(current)) continue;
+    const { option, inline } = optionAndInlineValue(current);
     const kind = VALUE_OPTIONS.get(option);
-    if (kind === undefined) throw new UnsupportedCurlOptionError(option);
+    if (kind === undefined) {
+      const warned = WARNED_VALUE_OPTIONS.get(option);
+      if (warned !== undefined || IGNORED_VALUE_OPTIONS.has(option)) {
+        if (warned !== undefined) warnTransport(option, warned);
+        // Consume the argument so it is never mistaken for the request URL.
+        if (inline === undefined) index += 1;
+        continue;
+      }
+      throw new UnsupportedCurlOptionError(option);
+    }
     const value = inline ?? requireValue(tokens, index + 1, option);
     if (inline === undefined) index += 1;
     if (kind === "request") {
@@ -451,12 +747,34 @@ export function parseCurl(input: string): CurlParseResult {
     } else if (kind === "cookie") {
       cookies.push(...parseCookies(value, { allowFileSyntax: true }));
     } else if (kind === "url") {
-      if (url !== undefined)
-        throw new CurlParseError(
-          "CURL_MULTIPLE_URLS",
-          "Multiple request URLs are not supported.",
-        );
-      url = value;
+      setUrl(value);
+    } else if (kind === "user-agent") {
+      headers.push(parseHeader(`User-Agent: ${value}`));
+    } else if (kind === "referer") {
+      // `;auto` asks cURL to keep the referer updated across redirects; the
+      // header value itself is everything before it.
+      const referer = value.replace(/;auto$/u, "");
+      if (referer.length > 0) headers.push(parseHeader(`Referer: ${referer}`));
+    } else if (kind === "json") {
+      // --json is shorthand for --data plus both JSON content negotiation
+      // headers, which cURL adds only when the user has not set them.
+      if (
+        !headers.some((header) => header.name.toLowerCase() === "content-type")
+      )
+        headers.push({ name: "Content-Type", value: "application/json" });
+      if (!headers.some((header) => header.name.toLowerCase() === "accept"))
+        headers.push({ name: "Accept", value: "application/json" });
+      data.push({ option: "data-raw", value });
+    } else if (kind === "url-query") {
+      urlQuery.push({ option: "data-urlencode", value });
+    } else if (kind === "upload-file") {
+      // -T uploads with PUT. Marking the method as explicit keeps the generic
+      // "a body implies POST" default from overriding it; a later -X still wins.
+      if (!explicitMethod) {
+        method = "PUT";
+        explicitMethod = true;
+      }
+      data.push({ option: "data-binary", value: `@${value}` });
     } else {
       data.push({ option: kind, value });
     }
@@ -468,6 +786,19 @@ export function parseCurl(input: string): CurlParseResult {
       "No URL found in the cURL command.",
     );
   const urlDetails = splitRequestUrl(url);
+  // `-G` moves the accumulated data into the query string, and `--url-query`
+  // always targets the query regardless of the request method.
+  const bodyData = dataAsQuery ? [] : data;
+  const queryFields = [
+    ...(dataAsQuery ? queryFromData(data) : []),
+    ...queryFromData(urlQuery),
+  ];
+  if (queryFields.length > 0) {
+    const target = new URL(url);
+    for (const field of queryFields)
+      target.searchParams.append(field.name, field.value);
+    url = target.toString();
+  }
   const parsedUrl = new URL(url);
   if (parsedUrl.username.length > 0 || parsedUrl.password.length > 0) {
     let urlAuth: RequestAuth;
@@ -499,14 +830,13 @@ export function parseCurl(input: string): CurlParseResult {
     parsedUrl.password = "";
     url = parsedUrl.toString();
   }
-  const warnings: ParseWarning[] = [];
   if (urlDetails.hadFragment) {
     warnings.push({
       code: "URL_FRAGMENT_IGNORED",
       message: "URL fragments are not sent in HTTP requests and were removed.",
     });
   }
-  const body = buildBody(data, forms, headers, warnings);
+  const body = buildBody(bodyData, forms, headers, warnings);
   if (!explicitMethod && body !== undefined) method = "POST";
   const authorizationHeaders = headers.filter(
     (header) => header.name.toLowerCase() === "authorization",

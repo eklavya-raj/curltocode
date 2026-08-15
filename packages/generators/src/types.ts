@@ -80,6 +80,9 @@ export type GeneratorErrorCode =
   | "GENERATOR_DUPLICATE_COOKIES"
   | "GENERATOR_FILE_REFERENCE"
   | "GENERATOR_UNSUPPORTED_METHOD_BODY"
+  /** The target client has no stable API for this part of the request. */
+  | "GENERATOR_CLIENT_LIMITATION"
+  /** The request cannot be written as a POSIX shell command. */
   | "GENERATOR_SHELL_LIMITATION";
 
 export class GeneratorError extends Error {

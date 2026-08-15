@@ -20,7 +20,8 @@ function validateRequestOptions(options: CreateHttpRequestOptions): void {
   for (const header of options.headers ?? []) {
     if (
       !HTTP_FIELD_NAME.test(header.name) ||
-      hasControlCharacter(header.value)
+      // RFC 9110 permits horizontal tab inside a field value.
+      hasControlCharacter(header.value.replaceAll("\t", " "))
     ) {
       throw new ValidationError("The request contains an invalid HTTP header.");
     }
