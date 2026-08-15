@@ -16,6 +16,11 @@ export default defineConfig({
     sitemap({
       // The 404 route is noindex, so it must not appear as a canonical URL.
       filter: (page) => !page.includes("/404"),
+      // No `lastmod`, `changefreq`, or `priority`. Google ignores the latter
+      // two outright, and a build-time `lastmod` would claim every page
+      // changed on every deploy. Google documents that it stops trusting
+      // `lastmod` values it finds unreliable, so an inaccurate one is worse
+      // than none.
     }),
   ],
   vite: {

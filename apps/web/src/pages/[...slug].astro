@@ -7,7 +7,7 @@ import FaqList from "../components/FaqList.astro";
 import RelatedConverters from "../components/RelatedConverters.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import { renderExamples, renderReverseExamples } from "../lib/examples.js";
-import type { BreadcrumbEntry } from "../lib/structured-data.js";
+import type { ArticleInput, BreadcrumbEntry } from "../lib/structured-data.js";
 
 export async function getStaticPaths() {
   const converters = await getCollection("converters");
@@ -49,6 +49,16 @@ const breadcrumbs: BreadcrumbEntry[] = [
   },
 ];
 
+// A converter page is a technical reference document about one client, so it
+// carries article structured data with the first example it actually renders.
+const article: ArticleInput = {
+  headline: data.heading,
+  // In both directions the rendered sample is source in the page's language:
+  // the generated output for cURL → code, and the parsed input for the reverse.
+  programmingLanguage: data.languageLabel,
+  codeSample: examples.find((example) => example.code !== undefined)?.code,
+};
+
 const related = data.related
   .map((slug) => all.find((candidate) => candidate.data.slug === slug))
   .filter((candidate) => candidate !== undefined);
@@ -60,6 +70,7 @@ const related = data.related
   ogImage={`/og/${data.slug.replace("/", "-")}.png`}
   breadcrumbs={breadcrumbs}
   faqs={data.faqs}
+  article={article}
 >
   <div class="shell">
     <nav class="breadcrumbs" aria-label="Breadcrumb">

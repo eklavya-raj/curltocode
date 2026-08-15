@@ -497,10 +497,9 @@ test("language pages render unique SEO metadata and a working converter", async 
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
     "Convert cURL to Python",
   );
-  await expect(page.getByLabel("Language")).toHaveAttribute(
-    "data-value",
-    "python",
-  );
+  await expect(
+    page.getByRole("combobox", { name: "Language", exact: true }),
+  ).toHaveAttribute("data-value", "python");
   await expect(page.getByText("pip install requests")).toBeVisible();
 });
 
@@ -511,12 +510,15 @@ test("new language and client pages initialize their real generators", async ({
   await page
     .locator('[aria-label="cURL and code converter"][data-ready="true"]')
     .waitFor();
-  await expect(page.getByLabel("Language")).toHaveAttribute("data-value", "go");
-  await expect(page.getByLabel("Client")).toHaveAttribute(
-    "data-value",
-    "nethttp",
-  );
-  await expect(page.getByLabel("Client")).toBeEnabled();
+  await expect(
+    page.getByRole("combobox", { name: "Language", exact: true }),
+  ).toHaveAttribute("data-value", "go");
+  await expect(
+    page.getByRole("combobox", { name: "Client", exact: true }),
+  ).toHaveAttribute("data-value", "nethttp");
+  await expect(
+    page.getByRole("combobox", { name: "Client", exact: true }),
+  ).toBeEnabled();
   await expect(page.getByLabel("Converted output")).toHaveValue(
     /package main/u,
   );
@@ -525,14 +527,12 @@ test("new language and client pages initialize their real generators", async ({
   await page
     .locator('[aria-label="cURL and code converter"][data-ready="true"]')
     .waitFor();
-  await expect(page.getByLabel("Language")).toHaveAttribute(
-    "data-value",
-    "java",
-  );
-  await expect(page.getByLabel("Client")).toHaveAttribute(
-    "data-value",
-    "okhttp",
-  );
+  await expect(
+    page.getByRole("combobox", { name: "Language", exact: true }),
+  ).toHaveAttribute("data-value", "java");
+  await expect(
+    page.getByRole("combobox", { name: "Client", exact: true }),
+  ).toHaveAttribute("data-value", "okhttp");
   await expect(page.getByLabel("Converted output")).toHaveValue(
     /OkHttpClient/u,
   );
@@ -542,14 +542,12 @@ test("new language and client pages initialize their real generators", async ({
   await page
     .locator('[aria-label="cURL and code converter"][data-ready="true"]')
     .waitFor();
-  await expect(page.getByLabel("Language")).toHaveAttribute(
-    "data-value",
-    "python",
-  );
-  await expect(page.getByLabel("Client")).toHaveAttribute(
-    "data-value",
-    "aiohttp",
-  );
+  await expect(
+    page.getByRole("combobox", { name: "Language", exact: true }),
+  ).toHaveAttribute("data-value", "python");
+  await expect(
+    page.getByRole("combobox", { name: "Client", exact: true }),
+  ).toHaveAttribute("data-value", "aiohttp");
   await expect(page.getByLabel("Converted output")).toHaveValue(
     /aiohttp\.ClientSession/u,
   );
@@ -961,6 +959,80 @@ test("masks inspector secrets while preserving source and generated output", asy
   await expect(page.getByLabel("Converted output")).toHaveValue(
     /header-secret/u,
   );
+});
+
+test("indexable pages request the largest available SERP treatment", async ({
+  page,
+}) => {
+  // Without these directives Google caps results at a short text-only snippet,
+  // which wastes the code example that is the point of every converter page.
+  for (const path of ["/", "/curl-to-python/requests", "/javascript-to-curl"]) {
+    await page.goto(path);
+    const robots =
+      (await page.locator('meta[name="robots"]').getAttribute("content")) ?? "";
+    expect(robots).toContain("index, follow");
+    expect(robots).toContain("max-snippet:-1");
+    expect(robots).toContain("max-image-preview:large");
+    await expect(page.locator('link[rel="sitemap"]')).toHaveAttribute(
+      "href",
+      "/sitemap-index.xml",
+    );
+  }
+});
+
+test("converter reference pages carry article structured data", async ({
+  page,
+}) => {
+  await page.goto("/curl-to-python/requests");
+  await expect(page.locator('meta[property="og:type"]')).toHaveAttribute(
+    "content",
+    "article",
+  );
+  const schema =
+    (await page.locator('script[type="application/ld+json"]').textContent()) ??
+    "";
+  const graph = (
+    JSON.parse(schema) as {
+      readonly "@graph": readonly Record<string, unknown>[];
+    }
+  )["@graph"];
+  const article = graph.find((node) => node["@type"] === "TechArticle");
+  expect(article).toBeDefined();
+  expect(article?.headline).toBe("Convert cURL to Python Requests");
+  const part = article?.hasPart as
+    | { readonly programmingLanguage?: string; readonly text?: string }
+    | undefined;
+  // The sample must be the page's real generated example, not placeholder text.
+  expect(part?.programmingLanguage).toBe("Python");
+  expect(part?.text).toContain("import requests");
+});
+
+test("navigation hubs stay WebPage rather than claiming to be articles", async ({
+  page,
+}) => {
+  await page.goto("/converters");
+  await expect(page.locator('meta[property="og:type"]')).toHaveAttribute(
+    "content",
+    "website",
+  );
+  const schema =
+    (await page.locator('script[type="application/ld+json"]').textContent()) ??
+    "";
+  expect(schema).not.toContain("TechArticle");
+});
+
+test("footer link groups do not pollute the heading outline", async ({
+  page,
+}) => {
+  await page.goto("/curl-to-python/requests");
+  // Footer group labels are navigation, not sections; emitting them as h2 put
+  // five extra entries into every page's outline.
+  await expect(
+    page.locator("footer").getByRole("heading", { level: 2 }),
+  ).toHaveCount(0);
+  // One footer landmark, not one per link group.
+  await expect(page.locator("footer nav")).toHaveCount(1);
+  await expect(page.locator("footer nav[aria-label='Footer']")).toBeVisible();
 });
 
 test("404 is noindex and excluded from the generated sitemap", async ({

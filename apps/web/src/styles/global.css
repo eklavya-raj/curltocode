@@ -1089,7 +1089,7 @@ h1 {
   gap: 20px;
   margin-bottom: 26px;
 }
-.footer-links h2 {
+.footer-group-title {
   margin: 0 0 8px;
   color: var(--ink);
   font-size: 0.78rem;

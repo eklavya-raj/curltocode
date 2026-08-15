@@ -36,6 +36,20 @@ export interface StructuredDataInput {
   readonly faqs?: readonly FaqEntry[] | undefined;
   /** Ordered page listing, for index pages that enumerate other routes. */
   readonly itemList?: readonly ItemListEntry[] | undefined;
+  /**
+   * Set on pages whose body really is a technical reference document. This
+   * makes the page eligible for article treatment, which a bare `WebPage`
+   * is not.
+   */
+  readonly article?: ArticleInput | undefined;
+}
+
+export interface ArticleInput {
+  readonly headline: string;
+  /** Programming language the document is about, for `SoftwareSourceCode`. */
+  readonly programmingLanguage?: string;
+  /** A representative generated example from the page. */
+  readonly codeSample?: string | undefined;
 }
 
 const WEBSITE_ID = `${SITE_URL}/#website`;
@@ -141,6 +155,46 @@ function itemList(
 }
 
 /**
+ * A converter reference page is a technical article about one client library.
+ *
+ * `TechArticle` is used rather than plain `Article` because it is the type
+ * that actually describes this content, and the embedded `SoftwareSourceCode`
+ * names the language of the example the page is built around. Both are omitted
+ * on pages that are navigation rather than documentation.
+ */
+function techArticle(
+  input: StructuredDataInput,
+  article: ArticleInput,
+): Record<string, unknown> {
+  return {
+    "@type": "TechArticle",
+    "@id": `${input.canonical}#article`,
+    headline: article.headline,
+    description: input.description,
+    inLanguage: "en",
+    isPartOf: { "@id": `${input.canonical}#webpage` },
+    mainEntityOfPage: { "@id": `${input.canonical}#webpage` },
+    author: { "@id": ORGANIZATION_ID },
+    publisher: { "@id": ORGANIZATION_ID },
+    ...(article.programmingLanguage === undefined
+      ? {}
+      : { proficiencyLevel: "Beginner" }),
+    ...(article.codeSample === undefined ||
+    article.programmingLanguage === undefined
+      ? {}
+      : {
+          hasPart: {
+            "@type": "SoftwareSourceCode",
+            "@id": `${input.canonical}#code`,
+            programmingLanguage: article.programmingLanguage,
+            codeSampleType: "full solution",
+            text: article.codeSample,
+          },
+        }),
+  };
+}
+
+/**
  * Build a single `@graph` document so page entities can reference the shared
  * site and organization nodes by `@id` instead of repeating them.
  */
@@ -158,5 +212,7 @@ export function buildStructuredData(
     graph.push(faqPage(input.canonical, input.faqs));
   if (input.itemList !== undefined && input.itemList.length > 0)
     graph.push(itemList(input.canonical, input.itemList));
+  if (input.article !== undefined)
+    graph.push(techArticle(input, input.article));
   return { "@context": "https://schema.org", "@graph": graph };
 }

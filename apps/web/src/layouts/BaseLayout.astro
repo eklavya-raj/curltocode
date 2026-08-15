@@ -5,6 +5,7 @@ import PwaInstallButton from "../components/PwaInstallButton.astro";
 import StructuredData from "../components/StructuredData.astro";
 import ThemeToggle from "../components/ThemeToggle.astro";
 import type {
+  ArticleInput,
   BreadcrumbEntry,
   FaqEntry,
   ItemListEntry,
@@ -28,6 +29,8 @@ interface Props {
   breadcrumbs?: readonly BreadcrumbEntry[];
   faqs?: readonly FaqEntry[];
   itemList?: readonly ItemListEntry[];
+  /** Present on reference pages, which are articles rather than navigation. */
+  article?: ArticleInput;
 }
 
 const {
@@ -38,6 +41,7 @@ const {
   breadcrumbs,
   faqs,
   itemList,
+  article,
 } = Astro.props;
 
 // Footer navigation is derived from the collection so a new converter page is
@@ -97,6 +101,7 @@ const structuredData = buildStructuredData({
   breadcrumbs,
   faqs,
   itemList,
+  article,
 });
 ---
 
@@ -108,8 +113,24 @@ const structuredData = buildStructuredData({
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
     <meta name="description" content={description} />
-    {noindex && <meta name="robots" content="noindex, nofollow" />}
+    {
+      /* Indexable pages opt into the largest preview treatment Google offers.
+        Without these directives a result is capped at a text-only snippet of
+        unspecified length, which is a needless handicap for pages whose value
+        is a code example. */
+    }
+    {
+      noindex ? (
+        <meta name="robots" content="noindex, nofollow" />
+      ) : (
+        <meta
+          name="robots"
+          content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1"
+        />
+      )
+    }
     <link rel="canonical" href={canonical} />
+    <link rel="sitemap" type="application/xml" href="/sitemap-index.xml" />
     <meta name="google-adsense-account" content="ca-pub-2111406329122011" />
 
     {
@@ -137,7 +158,10 @@ const structuredData = buildStructuredData({
     />
     <meta name="color-scheme" content="light dark" />
 
-    <meta property="og:type" content="website" />
+    <meta
+      property="og:type"
+      content={article === undefined ? "website" : "article"}
+    />
     <meta property="og:site_name" content={SITE_NAME} />
     <meta property="og:locale" content={SITE_LOCALE} />
     <meta property="og:title" content={title} />
@@ -340,12 +364,20 @@ const structuredData = buildStructuredData({
     <main id="main"><slot /></main>
     <footer class="site-footer">
       <div class="shell">
-        <div class="footer-links">
+        <nav class="footer-links" aria-label="Footer">
           {
-            footerGroups.map((group) => (
+            /* These labels group footer links; they are not sections of the
+              page. Emitting them as headings put five extra h2 entries into
+              every page's outline and diluted the real content headings. The
+              list is named through aria-labelledby instead, which keeps the
+              grouping available to assistive technology without adding a
+              landmark per group. */
+            footerGroups.map((group, index) => (
               <div>
-                <h2>{group.title}</h2>
-                <ul>
+                <p class="footer-group-title" id={`footer-group-${index}`}>
+                  {group.title}
+                </p>
+                <ul aria-labelledby={`footer-group-${index}`}>
                   {group.links.map((link) => (
                     <li>
                       <a href={link.href}>{link.label}</a>
@@ -355,7 +387,7 @@ const structuredData = buildStructuredData({
               </div>
             ))
           }
-        </div>
+        </nav>
         <p class="footer-note">
           CurlToCode parses locally. It never executes or sends the requests you
           paste.
