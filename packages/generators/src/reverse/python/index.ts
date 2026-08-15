@@ -60,6 +60,28 @@ function detect(
 ): Detected | undefined {
   const usesAiohttp = /\baiohttp\b/u.test(source);
   const sessionNames = new Set<string>();
+  // `requests.Session()` and `httpx.Client()` are the idiomatic way to reuse a
+  // connection, so the request call is usually made on the instance rather
+  // than on the module. Both the assignment and the `with ... as` form appear
+  // in real code and in the official documentation.
+  const moduleClients = new Map<string, ReverseClient>();
+  for (const [pattern, client] of [
+    [/([A-Za-z_][A-Za-z0-9_]*)\s*=\s*requests\.Session\(/gu, "requests"],
+    [
+      /(?:with\s+)?requests\.Session\(\s*\)\s*as\s+([A-Za-z_][A-Za-z0-9_]*)/gu,
+      "requests",
+    ],
+    [/([A-Za-z_][A-Za-z0-9_]*)\s*=\s*httpx\.(?:Async)?Client\(/gu, "httpx"],
+    [
+      /(?:async\s+)?(?:with\s+)?httpx\.(?:Async)?Client\([^)]*\)\s*as\s+([A-Za-z_][A-Za-z0-9_]*)/gu,
+      "httpx",
+    ],
+  ] as const) {
+    for (const match of source.matchAll(pattern)) {
+      const name = match[1];
+      if (name !== undefined) moduleClients.set(name, client);
+    }
+  }
   if (usesAiohttp) {
     for (const match of source.matchAll(
       /(?:async\s+with\s+)?aiohttp\.ClientSession\([^)]*\)\s*as\s+([A-Za-z_][A-Za-z0-9_]*)/gu,
@@ -94,7 +116,7 @@ function detect(
         ? "requests"
         : module === "httpx"
           ? "httpx"
-          : undefined;
+          : moduleClients.get(receiver);
     if (client === undefined) continue;
     if (METHOD_FUNCTIONS.has(name))
       return { client, call, method: name.toUpperCase() };

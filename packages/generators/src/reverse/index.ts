@@ -26,6 +26,7 @@ export function detectReverseLanguage(
   const javascript =
     /\bfetch\s*\(/u.test(source) ||
     /\baxios\b/u.test(source) ||
+    /\bundici\b/u.test(source) ||
     /\b(?:const|let|var|import|await|function)\b/u.test(source);
   if (javascript) return "javascript";
 
@@ -46,7 +47,7 @@ export function parseCodeRequest(
   const resolved = language ?? detectReverseLanguage(source);
   if (resolved === undefined) {
     throw new CodeParseError(
-      "No supported request was found. Reverse conversion currently reads JavaScript and TypeScript (Fetch, Axios) and Python (Requests, HTTPX, aiohttp).",
+      "No supported request was found. Reverse conversion currently reads JavaScript and TypeScript (Fetch, Axios, Undici) and Python (Requests, HTTPX, aiohttp).",
     );
   }
   return resolved === "python"

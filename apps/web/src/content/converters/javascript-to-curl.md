@@ -21,6 +21,7 @@ faqs:
 related:
   - javascript-to-curl/fetch
   - javascript-to-curl/axios
+  - javascript-to-curl/undici
   - typescript-to-curl
   - curl-to-javascript
 ---

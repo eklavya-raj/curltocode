@@ -38,7 +38,7 @@ function headerEntries(
   const node = resolveExpression(expression, bindings);
   if (node === undefined) return undefined;
   let value: JsonValue | undefined;
-  if (t.isObjectExpression(node)) {
+  if (t.isObjectExpression(node) || t.isArrayExpression(node)) {
     const result = evaluateStatic(node, bindings);
     if (result.ok) value = result.value;
   } else if (
@@ -53,6 +53,20 @@ function headerEntries(
     }
   }
   if (Array.isArray(value)) {
+    // Undici accepts a flat `[name, value, name, value]` array, which is how
+    // it preserves duplicate header names.
+    if (value.every((entry) => typeof entry === "string")) {
+      if (value.length % 2 !== 0) return undefined;
+      const headers: Header[] = [];
+      for (let index = 0; index < value.length; index += 2) {
+        const name = value[index];
+        const entry = value[index + 1];
+        if (typeof name !== "string" || typeof entry !== "string")
+          return undefined;
+        headers.push({ name, value: entry });
+      }
+      return headers;
+    }
     const headers: Header[] = [];
     for (const entry of value) {
       if (
@@ -396,6 +410,67 @@ function axiosAuth(
   return { kind: "basic", username, password };
 }
 
+/**
+ * Resolve a URL argument that may be wrapped in `new URL(...)`.
+ *
+ * The single-argument form is a plain absolute URL. The two-argument form
+ * resolves a relative reference against a base, which is exactly what the
+ * WHATWG URL constructor does, so it is reproduced here rather than rejected.
+ */
+function staticUrlLike(
+  expression: t.Expression | undefined,
+  bindings: StaticBindings,
+): string | undefined {
+  const direct = staticString(expression, bindings);
+  if (direct !== undefined) return direct;
+  if (expression === undefined) return undefined;
+  const node = resolveExpression(expression, bindings);
+  if (
+    node === undefined ||
+    !t.isNewExpression(node) ||
+    !t.isIdentifier(node.callee, { name: "URL" }) ||
+    node.arguments.length === 0 ||
+    node.arguments.length > 2
+  ) {
+    return undefined;
+  }
+  const target = staticString(expressionArgument(node.arguments[0]), bindings);
+  if (target === undefined) return undefined;
+  if (node.arguments.length === 1) return target;
+  const base = staticString(expressionArgument(node.arguments[1]), bindings);
+  if (base === undefined) return undefined;
+  try {
+    return new URL(target, base).toString();
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Unwrap `new Request(url, init)`, which carries the same init object shape
+ * that `fetch` accepts as its second argument.
+ */
+function requestConstructorInit(
+  expression: t.Expression | undefined,
+  bindings: StaticBindings,
+):
+  | { readonly url: t.Expression; readonly init: t.Expression | undefined }
+  | undefined {
+  if (expression === undefined) return undefined;
+  const node = resolveExpression(expression, bindings);
+  if (
+    node === undefined ||
+    !t.isNewExpression(node) ||
+    !t.isIdentifier(node.callee, { name: "Request" }) ||
+    node.arguments.length === 0
+  ) {
+    return undefined;
+  }
+  const url = expressionArgument(node.arguments[0]);
+  if (url === undefined) return undefined;
+  return { url, init: expressionArgument(node.arguments[1]) };
+}
+
 function fetchRequest(
   source: string,
   program: t.Program,
@@ -403,8 +478,12 @@ function fetchRequest(
   bindings: StaticBindings,
 ): ReverseParseResult {
   const issues: DynamicIssue[] = [];
-  const urlExpression = expressionArgument(call.arguments[0]);
-  const url = staticString(urlExpression, bindings);
+  const firstArgument = expressionArgument(call.arguments[0]);
+  // `fetch` accepts a URL, a `new URL(...)`, or a `new Request(...)`, and a
+  // Request carries its own init that the second argument then overrides.
+  const requestInit = requestConstructorInit(firstArgument, bindings);
+  const urlExpression = requestInit?.url ?? firstArgument;
+  const url = staticUrlLike(urlExpression, bindings);
   if (url === undefined)
     issues.push(
       issue(
@@ -414,7 +493,8 @@ function fetchRequest(
         urlExpression,
       ),
     );
-  const initExpression = expressionArgument(call.arguments[1]);
+  const initExpression =
+    expressionArgument(call.arguments[1]) ?? requestInit?.init;
   let properties: ReadonlyMap<string, t.Expression> = new Map();
   if (initExpression !== undefined) {
     const unwrapped = resolveExpression(initExpression, bindings);
@@ -559,6 +639,252 @@ function fetchRequest(
   };
 }
 
+/**
+ * Names bound to Undici's `request` export, plus the namespace forms.
+ *
+ * Undici is the client Node's own documentation reaches for when `fetch` is
+ * not enough, and it is already a forward target, so its call shape is read
+ * back here rather than being reported as unsupported JavaScript.
+ */
+function undiciRequestNames(program: t.Program): ReadonlySet<string> {
+  const names = new Set<string>();
+  for (const statement of program.body) {
+    if (
+      !t.isImportDeclaration(statement) ||
+      statement.source.value !== "undici"
+    ) {
+      continue;
+    }
+    for (const specifier of statement.specifiers) {
+      if (
+        t.isImportSpecifier(specifier) &&
+        t.isIdentifier(specifier.imported, { name: "request" })
+      ) {
+        names.add(specifier.local.name);
+      }
+    }
+  }
+  return names;
+}
+
+function isUndiciCallee(
+  callee: t.Node,
+  requestNames: ReadonlySet<string>,
+): boolean {
+  if (t.isIdentifier(callee) && requestNames.has(callee.name)) return true;
+  return (
+    t.isMemberExpression(callee) &&
+    !callee.computed &&
+    t.isIdentifier(callee.object, { name: "undici" }) &&
+    t.isIdentifier(callee.property, { name: "request" })
+  );
+}
+
+/**
+ * Read `request(url, options)` from Undici.
+ *
+ * Undici differs from `fetch` in three ways that matter here: headers may be a
+ * flat array, the query string can be supplied separately through `query`, and
+ * redirects are opt-in through `maxRedirections` rather than on by default.
+ */
+function undiciRequest(
+  source: string,
+  program: t.Program,
+  call: t.CallExpression,
+  bindings: StaticBindings,
+): ReverseParseResult {
+  const issues: DynamicIssue[] = [];
+  const urlExpression = expressionArgument(call.arguments[0]);
+  const baseUrl = staticUrlLike(urlExpression, bindings);
+  if (baseUrl === undefined)
+    issues.push(
+      issue(
+        "url",
+        "Dynamic URL cannot be resolved statically.",
+        source,
+        urlExpression,
+      ),
+    );
+  const optionsExpression = expressionArgument(call.arguments[1]);
+  let properties: ReadonlyMap<string, t.Expression> = new Map();
+  if (optionsExpression !== undefined) {
+    const unwrapped = resolveExpression(optionsExpression, bindings);
+    if (
+      unwrapped === undefined ||
+      !t.isObjectExpression(unwrapped) ||
+      objectProperties(unwrapped) === undefined
+    ) {
+      issues.push(
+        issue(
+          "config",
+          "Dynamic Undici options cannot be resolved statically.",
+          source,
+          optionsExpression,
+        ),
+      );
+    } else {
+      properties = objectProperties(unwrapped) ?? new Map();
+    }
+  }
+  for (const [name, expression] of properties) {
+    if (
+      ![
+        "method",
+        "headers",
+        "body",
+        "query",
+        "maxRedirections",
+        // The dispatcher carries connection policy, including the redirect
+        // interceptor this project's own generator emits.
+        "dispatcher",
+      ].includes(name)
+    ) {
+      issues.push(
+        issue(
+          "config",
+          `Unsupported Undici option cannot be represented safely: ${name}.`,
+          source,
+          expression,
+        ),
+      );
+    }
+  }
+  const url =
+    baseUrl === undefined
+      ? undefined
+      : addStaticParams(baseUrl, properties.get("query"), bindings);
+  if (url === undefined && baseUrl !== undefined) {
+    issues.push(
+      issue(
+        "url",
+        "Dynamic Undici query parameters cannot be resolved statically.",
+        source,
+        properties.get("query"),
+      ),
+    );
+  }
+  const methodExpression = properties.get("method");
+  const method =
+    methodExpression === undefined
+      ? "GET"
+      : staticString(methodExpression, bindings);
+  if (method === undefined)
+    issues.push(
+      issue(
+        "method",
+        "Dynamic method cannot be resolved statically.",
+        source,
+        methodExpression,
+      ),
+    );
+  const headersExpression = properties.get("headers");
+  const headers = headerEntries(headersExpression, bindings);
+  if (headers === undefined)
+    issues.push(
+      issue(
+        "headers",
+        "Dynamic headers cannot be resolved statically.",
+        source,
+        headersExpression,
+      ),
+    );
+  const bodyExpression = properties.get("body");
+  const bodyCandidate = bodyFromExpression(bodyExpression, bindings);
+  const body = refineBodyForHeaders(
+    bodyCandidate === "dynamic"
+      ? (staticFormDataBody(program, call, bodyExpression, bindings) ??
+          "dynamic")
+      : bodyCandidate,
+    headers ?? [],
+  );
+  if (body === "dynamic")
+    issues.push(
+      issue(
+        "body",
+        "Dynamic body cannot be resolved statically.",
+        source,
+        bodyExpression,
+      ),
+    );
+  // Undici does not follow redirects unless asked, either through
+  // `maxRedirections` or through a dispatcher composing the redirect
+  // interceptor.
+  const redirectionsExpression = properties.get("maxRedirections");
+  let followRedirects = false;
+  if (redirectionsExpression !== undefined) {
+    const value = evaluateStatic(redirectionsExpression, bindings);
+    if (!value.ok || typeof value.value !== "number") {
+      issues.push(
+        issue(
+          "config",
+          "Undici maxRedirections must be a static number.",
+          source,
+          redirectionsExpression,
+        ),
+      );
+    } else followRedirects = value.value > 0;
+  }
+  const dispatcherExpression = properties.get("dispatcher");
+  if (dispatcherExpression !== undefined) {
+    const resolved = resolveExpression(dispatcherExpression, bindings);
+    let composed = false;
+    if (resolved !== undefined) {
+      walk(resolved, (node) => {
+        if (
+          t.isMemberExpression(node) &&
+          t.isIdentifier(node.object, { name: "interceptors" }) &&
+          t.isIdentifier(node.property, { name: "redirect" })
+        ) {
+          composed = true;
+        }
+      });
+    }
+    if (composed) followRedirects = true;
+    else if (resolved === undefined) {
+      issues.push(
+        issue(
+          "config",
+          "Undici dispatcher cannot be resolved statically.",
+          source,
+          dispatcherExpression,
+        ),
+      );
+    }
+  }
+  if (issues.length > 0) {
+    const partialHeaders =
+      headers === undefined ? undefined : normalizeHeaders(headers);
+    throw new DynamicExpressionError(issues, {
+      client: "undici",
+      ...(method === undefined ? {} : { method }),
+      ...(url === undefined ? {} : { url }),
+      ...(partialHeaders === undefined
+        ? {}
+        : {
+            headers: partialHeaders.headers,
+            cookies: partialHeaders.cookies,
+            ...(partialHeaders.auth === undefined
+              ? {}
+              : { auth: partialHeaders.auth }),
+          }),
+      ...(body === undefined || body === "dynamic" ? {} : { body }),
+      followRedirects,
+    });
+  }
+  const normalized = normalizeHeaders([...(headers ?? [])]);
+  return {
+    client: "undici",
+    request: createHttpRequest(url ?? "", {
+      method: method ?? "GET",
+      headers: normalized.headers,
+      cookies: normalized.cookies,
+      ...(normalized.auth === undefined ? {} : { auth: normalized.auth }),
+      ...(body === undefined || body === "dynamic" ? {} : { body }),
+      followRedirects,
+    }),
+  };
+}
+
 function isFetchCallee(callee: t.Node): boolean {
   if (t.isIdentifier(callee, { name: "fetch" })) return true;
   return (
@@ -591,10 +917,68 @@ function axiosBindingNames(program: t.Program): ReadonlySet<string> {
   return names;
 }
 
+const AXIOS_METHODS: readonly string[] = [
+  "request",
+  "get",
+  "post",
+  "put",
+  "patch",
+  "delete",
+  "head",
+  "options",
+];
+
+/**
+ * Configuration objects passed to `axios.create(...)`, keyed by the variable
+ * the instance was assigned to.
+ *
+ * Instances are how most production code calls Axios, so a parser that only
+ * reads bare `axios.get(...)` misses the common shape. Only top-level `const`
+ * and `let` declarations are collected, matching the safe-binding rule the
+ * rest of this parser follows.
+ */
+function axiosInstanceConfigs(
+  program: t.Program,
+  axiosNames: ReadonlySet<string>,
+): ReadonlyMap<string, t.ObjectExpression | undefined> {
+  const instances = new Map<string, t.ObjectExpression | undefined>();
+  walk(program, (node) => {
+    if (!t.isVariableDeclarator(node) || !t.isIdentifier(node.id)) return;
+    const init = node.init;
+    if (
+      !t.isCallExpression(init) ||
+      !t.isMemberExpression(init.callee) ||
+      init.callee.computed ||
+      !t.isIdentifier(init.callee.object) ||
+      !axiosNames.has(init.callee.object.name) ||
+      !t.isIdentifier(init.callee.property, { name: "create" })
+    ) {
+      return;
+    }
+    const argument = init.arguments[0];
+    instances.set(
+      node.id.name,
+      argument !== undefined && t.isObjectExpression(argument)
+        ? argument
+        : undefined,
+    );
+  });
+  return instances;
+}
+
 function axiosCallKind(
   call: t.CallExpression,
   axiosNames: ReadonlySet<string>,
-): "request" | "get" | "post" | "put" | "patch" | "delete" | undefined {
+):
+  | "request"
+  | "get"
+  | "post"
+  | "put"
+  | "patch"
+  | "delete"
+  | "head"
+  | "options"
+  | undefined {
   if (t.isIdentifier(call.callee) && axiosNames.has(call.callee.name))
     return "request";
   if (
@@ -602,9 +986,7 @@ function axiosCallKind(
     t.isIdentifier(call.callee.object) &&
     axiosNames.has(call.callee.object.name) &&
     t.isIdentifier(call.callee.property) &&
-    ["request", "get", "post", "put", "patch", "delete"].includes(
-      call.callee.property.name,
-    )
+    AXIOS_METHODS.includes(call.callee.property.name)
   ) {
     return call.callee.property.name as ReturnType<typeof axiosCallKind>;
   }
@@ -617,8 +999,15 @@ function axiosRequest(
   call: t.CallExpression,
   kind: NonNullable<ReturnType<typeof axiosCallKind>>,
   bindings: StaticBindings,
+  instanceConfig?: t.ObjectExpression | undefined,
 ): ReverseParseResult {
   const issues: DynamicIssue[] = [];
+  // Instance defaults sit underneath the per-call configuration, which is the
+  // precedence Axios itself applies when merging the two.
+  const defaults =
+    instanceConfig === undefined
+      ? new Map<string, t.Expression>()
+      : (objectProperties(instanceConfig) ?? new Map<string, t.Expression>());
   let urlExpression: t.Expression | undefined;
   let dataExpression: t.Expression | undefined;
   let configExpression: t.Expression | undefined;
@@ -664,6 +1053,7 @@ function axiosRequest(
     if (
       ![
         "url",
+        "baseURL",
         "method",
         "headers",
         "data",
@@ -685,10 +1075,43 @@ function axiosRequest(
   urlExpression ??= properties.get("url");
   dataExpression ??= properties.get("data");
   const rawUrl = staticString(urlExpression, bindings);
-  const url =
+  // `baseURL` may come from either the instance or the call; a call-level URL
+  // that is already absolute wins, matching how Axios resolves the pair.
+  const baseUrlExpression =
+    properties.get("baseURL") ?? defaults.get("baseURL");
+  const baseUrl =
+    baseUrlExpression === undefined
+      ? undefined
+      : staticString(baseUrlExpression, bindings);
+  const resolvedUrl =
     rawUrl === undefined
       ? undefined
-      : addStaticParams(rawUrl, properties.get("params"), bindings);
+      : baseUrl === undefined || /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//u.test(rawUrl)
+        ? rawUrl
+        : `${baseUrl.replace(/\/+$/u, "")}/${rawUrl.replace(/^\/+/u, "")}`;
+  if (
+    baseUrlExpression !== undefined &&
+    baseUrl === undefined &&
+    rawUrl !== undefined
+  ) {
+    issues.push(
+      issue(
+        "url",
+        "Dynamic Axios baseURL cannot be resolved statically.",
+        source,
+        baseUrlExpression,
+      ),
+    );
+  }
+  const url =
+    resolvedUrl === undefined
+      ? undefined
+      : addStaticParams(
+          addStaticParams(resolvedUrl, defaults.get("params"), bindings) ??
+            resolvedUrl,
+          properties.get("params"),
+          bindings,
+        );
   if (url === undefined)
     issues.push(
       issue(
@@ -715,14 +1138,33 @@ function axiosRequest(
       ),
     );
   const headersExpression = properties.get("headers");
-  const headers = headerEntries(headersExpression, bindings);
+  const callHeaders = headerEntries(headersExpression, bindings);
+  const defaultHeadersExpression = defaults.get("headers");
+  const defaultHeaders = headerEntries(defaultHeadersExpression, bindings);
+  // A per-call header replaces the instance default of the same name rather
+  // than appending a second copy of it.
+  const headers =
+    callHeaders === undefined || defaultHeaders === undefined
+      ? undefined
+      : [
+          ...defaultHeaders.filter(
+            (header) =>
+              !callHeaders.some(
+                (override) =>
+                  override.name.toLowerCase() === header.name.toLowerCase(),
+              ),
+          ),
+          ...callHeaders,
+        ];
   if (headers === undefined)
     issues.push(
       issue(
         "headers",
         "Dynamic headers cannot be resolved statically.",
         source,
-        headersExpression,
+        callHeaders === undefined
+          ? headersExpression
+          : defaultHeadersExpression,
       ),
     );
   const bodyCandidate = bodyFromExpression(dataExpression, bindings);
@@ -764,7 +1206,10 @@ function axiosRequest(
         dataExpression,
       ),
     );
-  const configuredAuth = axiosAuth(properties.get("auth"), bindings);
+  const configuredAuth = axiosAuth(
+    properties.get("auth") ?? defaults.get("auth"),
+    bindings,
+  );
   if (configuredAuth === "dynamic") {
     issues.push(
       issue(
@@ -879,24 +1324,49 @@ export function parseJavaScriptRequest(source: string): ReverseParseResult {
   let match:
     | {
         readonly call: t.CallExpression;
-        readonly client: "fetch" | "axios";
+        readonly client: "fetch" | "axios" | "undici";
         readonly kind?: NonNullable<ReturnType<typeof axiosCallKind>>;
       }
     | undefined;
   const axiosNames = axiosBindingNames(ast.program);
+  const undiciNames = undiciRequestNames(ast.program);
+  const instances = axiosInstanceConfigs(ast.program, axiosNames);
+  // Instance variables answer to the same call shapes as the `axios` import.
+  const callableNames = new Set([...axiosNames, ...instances.keys()]);
+  let instanceName: string | undefined;
   walk(ast.program, (node) => {
     if (match !== undefined || !t.isCallExpression(node)) return;
-    if (isFetchCallee(node.callee)) match = { call: node, client: "fetch" };
-    else {
-      const kind = axiosCallKind(node, axiosNames);
-      if (kind !== undefined) match = { call: node, client: "axios", kind };
+    // Undici is checked first because a project may import both, and its
+    // `request` export is a distinct call shape from `fetch`.
+    if (isUndiciCallee(node.callee, undiciNames)) {
+      match = { call: node, client: "undici" };
+      return;
     }
+    if (isFetchCallee(node.callee)) {
+      match = { call: node, client: "fetch" };
+      return;
+    }
+    const kind = axiosCallKind(node, callableNames);
+    if (kind === undefined) return;
+    // `axios.create(...)` is itself a member call on an Axios name, but it
+    // builds a client rather than issuing a request.
+    const calleeName = t.isMemberExpression(node.callee)
+      ? t.isIdentifier(node.callee.object)
+        ? node.callee.object.name
+        : undefined
+      : t.isIdentifier(node.callee)
+        ? node.callee.name
+        : undefined;
+    match = { call: node, client: "axios", kind };
+    instanceName = calleeName;
   });
   if (match === undefined)
     throw new CodeParseError(
-      "No supported fetch() or Axios request was found.",
+      "No supported fetch(), Undici, or Axios request was found.",
     );
   const bindings = collectStaticBindings(ast.program, match.call);
+  if (match.client === "undici")
+    return undiciRequest(source, ast.program, match.call, bindings);
   return match.client === "fetch"
     ? fetchRequest(source, ast.program, match.call, bindings)
     : axiosRequest(
@@ -905,5 +1375,6 @@ export function parseJavaScriptRequest(source: string): ReverseParseResult {
         match.call,
         match.kind ?? "request",
         bindings,
+        instanceName === undefined ? undefined : instances.get(instanceName),
       );
 }

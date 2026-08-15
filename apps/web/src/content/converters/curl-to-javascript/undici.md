@@ -22,6 +22,7 @@ related:
   - curl-to-javascript/fetch
   - curl-to-javascript/axios
   - curl-to-typescript
+  - javascript-to-curl/undici
 ---
 
 ## Why use Undici directly

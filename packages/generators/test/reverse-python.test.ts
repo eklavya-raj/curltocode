@@ -378,3 +378,53 @@ describe("curl to Python and back", () => {
     expect(generateCurl(recovered).code).toBe(generateCurl(original).code);
   });
 });
+
+describe("client and session instances", () => {
+  it("reads a requests.Session assigned to a variable", () => {
+    const result = parsePythonRequest(
+      [
+        "import requests",
+        "session = requests.Session()",
+        'response = session.post("https://api.example.com/x", json={"a": 1})',
+      ].join("\n"),
+    );
+    expect(result.client).toBe("requests");
+    expect(result.request.method).toBe("POST");
+    expect(result.request.url).toBe("https://api.example.com/x");
+    expect(result.request.body).toMatchObject({ kind: "json" });
+  });
+
+  it("reads a requests.Session used as a context manager", () => {
+    const result = parsePythonRequest(
+      [
+        "import requests",
+        "with requests.Session() as s:",
+        '    r = s.get("https://api.example.com/y", params={"q": "1"})',
+      ].join("\n"),
+    );
+    expect(result.client).toBe("requests");
+    expect(result.request.query).toEqual([{ name: "q", value: "1" }]);
+  });
+
+  it("reads httpx.Client and httpx.AsyncClient instances", () => {
+    const sync = parsePythonRequest(
+      [
+        "import httpx",
+        "with httpx.Client() as client:",
+        '    r = client.get("https://api.example.com/x")',
+      ].join("\n"),
+    );
+    expect(sync.client).toBe("httpx");
+    expect(sync.request.url).toBe("https://api.example.com/x");
+
+    const asynchronous = parsePythonRequest(
+      [
+        "import httpx",
+        "async with httpx.AsyncClient() as client:",
+        '    r = await client.delete("https://api.example.com/z")',
+      ].join("\n"),
+    );
+    expect(asynchronous.client).toBe("httpx");
+    expect(asynchronous.request.method).toBe("DELETE");
+  });
+});

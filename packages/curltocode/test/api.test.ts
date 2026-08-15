@@ -95,6 +95,11 @@ describe("curltocode public API", () => {
         parserLanguage: "javascript",
       },
       {
+        language: "javascript",
+        client: "undici",
+        parserLanguage: "javascript",
+      },
+      {
         language: "typescript",
         client: "fetch",
         parserLanguage: "javascript",
@@ -102,6 +107,11 @@ describe("curltocode public API", () => {
       {
         language: "typescript",
         client: "axios",
+        parserLanguage: "javascript",
+      },
+      {
+        language: "typescript",
+        client: "undici",
         parserLanguage: "javascript",
       },
       {

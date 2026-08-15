@@ -438,3 +438,154 @@ describe("parseJavaScriptRequest", () => {
     expect(requestsAreSemanticallyEqual(original, reversed)).toBe(true);
   });
 });
+
+describe("Undici reverse parsing", () => {
+  it.each([
+    "curl 'https://api.example.com/items?tag=a&tag=b' -H 'Accept: application/json'",
+    "curl -X POST 'https://api.example.com/items' -H 'Content-Type: application/json' --data-raw '{\"n\":1}' -u 'u:p' -b 'sid=1' -L",
+    "curl -X POST 'https://api.example.com/f' -d 'a=1&b=2'",
+    "curl -X PUT 'https://api.example.com/x' -H 'X-D: 1' -H 'X-D: 2' --data-raw 'hello'",
+  ])("round-trips %s through the Undici generator", (command) => {
+    for (const id of ["javascript-undici", "typescript-undici"] as const) {
+      const original = parseCurl(command).request;
+      const code = generateCode(original, id).code;
+      const reversed = parseJavaScriptRequest(code);
+      expect(reversed.client).toBe("undici");
+      expect(
+        requestsAreSemanticallyEqual(original, reversed.request),
+        JSON.stringify({ id, code }, null, 2),
+      ).toBe(true);
+    }
+  });
+
+  it("reads a hand-written request with query and object headers", () => {
+    const result = parseJavaScriptRequest(
+      [
+        'import { request } from "undici";',
+        'const response = await request("https://api.example.com/x", {',
+        '  method: "POST",',
+        '  headers: { "content-type": "application/json" },',
+        "  body: JSON.stringify({ a: 1 }),",
+        '  query: { p: "1" },',
+        "});",
+      ].join("\n"),
+    );
+    expect(result.client).toBe("undici");
+    expect(result.request.method).toBe("POST");
+    expect(result.request.query).toEqual([{ name: "p", value: "1" }]);
+    expect(result.request.body).toMatchObject({ kind: "json" });
+  });
+
+  it("treats redirects as opt-in, unlike fetch", () => {
+    const namespaced = 'import undici from "undici";\n';
+    expect(
+      parseJavaScriptRequest(
+        `${namespaced}await undici.request("https://api.example.com/y");`,
+      ).request.options.followRedirects,
+    ).toBe(false);
+    expect(
+      parseJavaScriptRequest(
+        `${namespaced}await undici.request("https://api.example.com/y", { maxRedirections: 5 });`,
+      ).request.options.followRedirects,
+    ).toBe(true);
+  });
+
+  it("reports an unsupported Undici option instead of dropping it", () => {
+    expect(() =>
+      parseJavaScriptRequest(
+        [
+          'import { request } from "undici";',
+          'await request("https://api.example.com/x", { bodyTimeout: 500 });',
+        ].join("\n"),
+      ),
+    ).toThrowError(DynamicExpressionError);
+  });
+});
+
+describe("Axios instances", () => {
+  it("resolves a baseURL and merges instance headers", () => {
+    const result = parseJavaScriptRequest(
+      [
+        'import axios from "axios";',
+        "const client = axios.create({",
+        '  baseURL: "https://api.example.com/v1",',
+        '  headers: { "X-Key": "instance", Accept: "application/json" },',
+        "});",
+        'await client.get("/users", { headers: { "X-Key": "call" } });',
+      ].join("\n"),
+    );
+    expect(result.client).toBe("axios");
+    expect(result.request.url).toBe("https://api.example.com/v1/users");
+    // A per-call header replaces the instance default rather than duplicating it.
+    expect(result.request.headers).toEqual([
+      { name: "Accept", value: "application/json" },
+      { name: "X-Key", value: "call" },
+    ]);
+  });
+
+  it("keeps an absolute call URL in preference to the baseURL", () => {
+    const result = parseJavaScriptRequest(
+      [
+        'import axios from "axios";',
+        'const client = axios.create({ baseURL: "https://api.example.com" });',
+        'await client.delete("https://other.example.com/z");',
+      ].join("\n"),
+    );
+    expect(result.request.url).toBe("https://other.example.com/z");
+    expect(result.request.method).toBe("DELETE");
+  });
+
+  it("takes instance auth when the call does not override it", () => {
+    const result = parseJavaScriptRequest(
+      [
+        'import axios from "axios";',
+        'const client = axios.create({ auth: { username: "u", password: "p" } });',
+        'await client.get("https://api.example.com/x");',
+      ].join("\n"),
+    );
+    expect(result.request.auth).toEqual({
+      kind: "basic",
+      username: "u",
+      password: "p",
+    });
+  });
+
+  it("supports head and options methods", () => {
+    expect(
+      parseJavaScriptRequest('axios.head("https://api.example.com/x")').request
+        .method,
+    ).toBe("HEAD");
+    expect(
+      parseJavaScriptRequest('axios.options("https://api.example.com/x")')
+        .request.method,
+    ).toBe("OPTIONS");
+  });
+});
+
+describe("fetch URL and Request forms", () => {
+  it("reads fetch(new URL(...)) including the relative base form", () => {
+    expect(
+      parseJavaScriptRequest('fetch(new URL("https://api.example.com/x"))')
+        .request.url,
+    ).toBe("https://api.example.com/x");
+    expect(
+      parseJavaScriptRequest(
+        'fetch(new URL("/v2/items", "https://api.example.com"))',
+      ).request.url,
+    ).toBe("https://api.example.com/v2/items");
+  });
+
+  it("reads new Request(url, init) and lets a later init override it", () => {
+    const result = parseJavaScriptRequest(
+      [
+        'const req = new Request("https://api.example.com/x", {',
+        '  method: "PUT",',
+        '  headers: { "X-A": "1" },',
+        "});",
+        "await fetch(req);",
+      ].join("\n"),
+    );
+    expect(result.request.method).toBe("PUT");
+    expect(result.request.headers).toEqual([{ name: "X-A", value: "1" }]);
+  });
+});

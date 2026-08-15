@@ -22,6 +22,7 @@ related:
   - curl-to-typescript
   - curl-to-javascript/undici
   - curl-to-typescript/fetch
+  - typescript-to-curl/undici
 ---
 
 ## The target that preserves repeated headers

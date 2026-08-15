@@ -18,7 +18,7 @@ export type ReverseTargetLanguage = "javascript" | "typescript" | "python";
  * registry: a target only appears once a parser exists that can read it back.
  */
 export type ReverseClient =
-  "fetch" | "axios" | "requests" | "httpx" | "aiohttp";
+  "fetch" | "axios" | "undici" | "requests" | "httpx" | "aiohttp";
 
 export interface ReverseTarget {
   readonly language: ReverseTargetLanguage;
@@ -34,8 +34,10 @@ export interface ReverseTarget {
 export const reverseTargets: readonly ReverseTarget[] = [
   { language: "javascript", client: "fetch", parserLanguage: "javascript" },
   { language: "javascript", client: "axios", parserLanguage: "javascript" },
+  { language: "javascript", client: "undici", parserLanguage: "javascript" },
   { language: "typescript", client: "fetch", parserLanguage: "javascript" },
   { language: "typescript", client: "axios", parserLanguage: "javascript" },
+  { language: "typescript", client: "undici", parserLanguage: "javascript" },
   { language: "python", client: "requests", parserLanguage: "python" },
   { language: "python", client: "httpx", parserLanguage: "python" },
   { language: "python", client: "aiohttp", parserLanguage: "python" },
@@ -45,6 +47,7 @@ export const reverseTargets: readonly ReverseTarget[] = [
 export const REVERSE_CLIENT_LABELS: Record<ReverseClient, string> = {
   fetch: "Fetch",
   axios: "Axios",
+  undici: "Undici",
   requests: "Requests",
   httpx: "HTTPX",
   aiohttp: "aiohttp",
