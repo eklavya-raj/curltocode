@@ -1,6 +1,7 @@
 import type {
   GeneratorClient as Client,
   GeneratorLanguage as Language,
+  ReverseTargetLanguage,
 } from "curltocode";
 import type { SimpleIcon } from "simple-icons";
 import {
@@ -68,8 +69,7 @@ const clientIcons: Record<Client, IconDefinition> = {
  * JavaScript AST parser also understands TypeScript syntax, but the UI keeps
  * the languages separate so an explicit selection reflects the pasted code.
  */
-export type SourceLanguage =
-  "auto" | "javascript" | "typescript" | "python" | "php" | "go";
+export type SourceLanguage = "auto" | ReverseTargetLanguage;
 
 const sourceIcons: Record<SourceLanguage, IconDefinition> = {
   auto: { type: "monogram", text: "A" },
