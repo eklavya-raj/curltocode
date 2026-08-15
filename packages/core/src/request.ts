@@ -89,6 +89,19 @@ export interface CreateHttpRequestOptions {
   readonly followRedirects?: boolean;
 }
 
+/**
+ * Apply the scheme cURL assumes when a URL does not carry one.
+ *
+ * `curl localhost:9200/_search` and `curl example.com/path` are both valid and
+ * appear constantly in documentation. Without this, `new URL` reads
+ * `localhost:` as the scheme and the command is rejected.
+ */
+export function withDefaultScheme(input: string): string {
+  return /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//u.test(input)
+    ? input
+    : `http://${input}`;
+}
+
 export function splitRequestUrl(input: string): {
   readonly url: string;
   readonly query: readonly QueryParameter[];
@@ -96,7 +109,7 @@ export function splitRequestUrl(input: string): {
 } {
   let parsed: URL;
   try {
-    parsed = new URL(input);
+    parsed = new URL(withDefaultScheme(input));
   } catch {
     throw new CurlParseError(
       "CURL_INVALID_URL",

@@ -46,8 +46,16 @@ export class CurlParseError extends CurlToCodeError {
 }
 
 export class UnsupportedCurlOptionError extends CurlParseError {
-  constructor(readonly option: string) {
-    super("CURL_UNSUPPORTED_OPTION", `Unsupported cURL option: ${option}`);
+  /**
+   * `message` carries the specific reason an option cannot be converted, which
+   * is far more useful than the bare option name when the cause is a protocol
+   * mismatch or a value that only exists at run time.
+   */
+  constructor(
+    readonly option: string,
+    message = `Unsupported cURL option: ${option}`,
+  ) {
+    super("CURL_UNSUPPORTED_OPTION", message);
     this.name = "UnsupportedCurlOptionError";
   }
 }

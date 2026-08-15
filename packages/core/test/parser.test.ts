@@ -486,7 +486,7 @@ describe("parseCurl", () => {
   });
 
   it("still rejects options that would change the request meaningfully", () => {
-    for (const option of ["--netrc", "--digest", "--data-ascii"]) {
+    for (const option of ["--netrc", "--digest", "--ftp-pasv"]) {
       expect(() =>
         parseCurl(`curl ${option} https://example.com`),
       ).toThrowError(

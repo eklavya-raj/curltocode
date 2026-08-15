@@ -11,6 +11,171 @@ export interface ShellToken {
 type Quote = "single" | "double" | "ansi" | undefined;
 
 /**
+ * Command-line syntaxes a copied cURL command can arrive in.
+ *
+ * Chrome, Edge, and Firefox all offer "Copy as cURL" in three flavours, and a
+ * Windows user is as likely to reach for cmd or PowerShell as for bash. The
+ * three disagree on how lines continue and how quotes are escaped, so a
+ * POSIX-only tokenizer turns the other two into nonsense.
+ */
+export type ShellDialect = "posix" | "cmd" | "powershell";
+
+/**
+ * Guess which shell produced a command.
+ *
+ * Continuation characters are the reliable signal: only cmd continues a line
+ * with `^`, and only PowerShell continues one with a backtick. Both are
+ * meaningless at the end of a POSIX line, so seeing one is close to proof.
+ */
+export function detectShellDialect(input: string): ShellDialect {
+  if (/\^[ \t]*\r?\n/u.test(input)) return "cmd";
+  if (/`[ \t]*\r?\n/u.test(input)) return "powershell";
+  // PowerShell shadows `curl` with its own cmdlet, so copied commands name the
+  // real executable. A single-line command has no continuation to go on.
+  if (/^\s*curl\.exe\b/iu.test(input)) return "powershell";
+  return "posix";
+}
+
+/**
+ * Tokenize a cmd or PowerShell command line.
+ *
+ * These are handled apart from the POSIX tokenizer because almost every rule
+ * differs: the continuation character, whether single quotes exist, and how a
+ * quote is escaped inside a quoted string. Keeping them separate leaves the
+ * well-covered POSIX path untouched.
+ */
+function tokenizeWindows(
+  input: string,
+  dialect: "cmd" | "powershell",
+): readonly ShellToken[] {
+  const continuation = dialect === "cmd" ? "^" : "`";
+  const tokens: ShellToken[] = [];
+  let value = "";
+  let quote: '"' | "'" | undefined;
+  let tokenOpen = false;
+  let tokenStart = 0;
+  let line = 1;
+  let column = 1;
+  let tokenLine = 1;
+  let tokenColumn = 1;
+
+  const open = (index: number): void => {
+    if (tokenOpen) return;
+    tokenOpen = true;
+    tokenStart = index;
+    tokenLine = line;
+    tokenColumn = column;
+  };
+  const close = (end: number): void => {
+    if (!tokenOpen) return;
+    tokens.push({
+      value,
+      start: tokenStart,
+      end,
+      line: tokenLine,
+      column: tokenColumn,
+    });
+    value = "";
+    tokenOpen = false;
+  };
+
+  for (let index = 0; index < input.length; index += 1) {
+    const character = input[index];
+    if (character === undefined) continue;
+
+    // A continuation character immediately before a newline joins the lines.
+    if (character === continuation) {
+      const rest = /^[ \t]*\r?\n/u.exec(input.slice(index + 1));
+      if (rest !== null) {
+        index += rest[0].length;
+        line += 1;
+        column = 1;
+        continue;
+      }
+    }
+
+    if (quote === "'") {
+      // PowerShell single quotes are literal; '' is one embedded quote.
+      if (character === "'") {
+        if (input[index + 1] === "'") {
+          value += "'";
+          index += 1;
+          column += 1;
+        } else quote = undefined;
+      } else value += character;
+    } else if (quote === '"') {
+      const next = input[index + 1];
+      if (dialect === "cmd" && character === "\\" && next === '"') {
+        value += '"';
+        index += 1;
+        column += 1;
+      } else if (dialect === "cmd" && character === "\\" && next === "\\") {
+        value += "\\";
+        index += 1;
+        column += 1;
+      } else if (
+        dialect === "powershell" &&
+        character === "`" &&
+        next !== undefined
+      ) {
+        // PowerShell escapes with a backtick inside double quotes.
+        value += next === "n" ? "\n" : next === "t" ? "\t" : next;
+        index += 1;
+        column += 1;
+      } else if (
+        dialect === "powershell" &&
+        character === '"' &&
+        next === '"'
+      ) {
+        value += '"';
+        index += 1;
+        column += 1;
+      } else if (character === '"') {
+        quote = undefined;
+      } else value += character;
+    } else if (/\s/u.test(character)) {
+      close(index);
+    } else if (character === '"') {
+      open(index);
+      quote = '"';
+    } else if (dialect === "powershell" && character === "'") {
+      open(index);
+      quote = "'";
+    } else if (character === continuation && input[index + 1] !== undefined) {
+      // Outside quotes the continuation character also escapes the character
+      // after it, which is how cmd protects & | < > and how PowerShell
+      // protects $ and spaces.
+      open(index);
+      value += input[index + 1];
+      index += 1;
+      column += 1;
+    } else {
+      // Percent escaping is deliberately left alone. cmd expands %VAR% and
+      // browsers escape it, but they disagree on the form, and guessing wrong
+      // would corrupt a percent-encoded URL. A literal %% survives as written.
+      open(index);
+      value += character;
+    }
+
+    if (character === "\n") {
+      line += 1;
+      column = 1;
+    } else column += 1;
+  }
+
+  if (quote !== undefined) {
+    throw new CurlTokenizeError(
+      "CURL_UNCLOSED_QUOTE",
+      `Unclosed ${quote === '"' ? "double" : "single"} quote near line ${tokenLine}.`,
+      tokenLine,
+      tokenColumn,
+    );
+  }
+  close(input.length);
+  return tokens;
+}
+
+/**
  * Single-character escapes recognised inside bash ANSI-C quoting (`$'...'`).
  *
  * Browsers reach for this form whenever a copied header value contains a
@@ -111,7 +276,11 @@ function continuationLength(input: string, backslashIndex: number): 0 | 1 | 2 {
   return 0;
 }
 
-export function tokenizeCurl(input: string): readonly ShellToken[] {
+export function tokenizeCurl(
+  input: string,
+  dialect: ShellDialect = detectShellDialect(input),
+): readonly ShellToken[] {
+  if (dialect !== "posix") return tokenizeWindows(input, dialect);
   const tokens: ShellToken[] = [];
   let value = "";
   let quote: Quote;

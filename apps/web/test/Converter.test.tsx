@@ -205,7 +205,7 @@ describe("Converter", () => {
     await user.clear(input);
     await user.type(input, "curl --netrc https://example.com");
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Unsupported cURL option: --netrc",
+      "--netrc cannot be converted because credentials would have to be read from a .netrc file.",
     );
     await user.click(screen.getByRole("button", { name: "Code → cURL" }));
     const codeInput = screen.getByLabelText(

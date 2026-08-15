@@ -1,3 +1,5 @@
+import { CURL_OPTION_INDEX } from "./curl-options.js";
+import type { CurlOptionSpec } from "./curl-options.js";
 import { CurlParseError, UnsupportedCurlOptionError } from "./errors.js";
 import type {
   Cookie,
@@ -10,7 +12,11 @@ import type {
   RequestAuth,
   RequestBody,
 } from "./model.js";
-import { createHttpRequest, splitRequestUrl } from "./request.js";
+import {
+  createHttpRequest,
+  splitRequestUrl,
+  withDefaultScheme,
+} from "./request.js";
 import type { ShellToken } from "./tokenizer.js";
 import { tokenizeCurl } from "./tokenizer.js";
 
@@ -57,141 +63,11 @@ type ValueOptionKind =
   | "referer"
   | "json"
   | "url-query"
-  | "upload-file";
-
-/**
- * Options that change only how the local cURL process behaves — its console
- * output, retry loop, or timeouts — and leave the request on the wire
- * unchanged. A generated snippet is a faithful representation of the request
- * whether or not these are present, so they are accepted and dropped.
- */
-const IGNORED_FLAGS: ReadonlySet<string> = new Set([
-  "-#",
-  "-4",
-  "-6",
-  "-J",
-  "-N",
-  "-O",
-  "-R",
-  "-S",
-  "-Z",
-  "-f",
-  "-g",
-  "-i",
-  "-s",
-  "-v",
-  "--basic",
-  "--create-dirs",
-  "--fail",
-  "--fail-early",
-  "--fail-with-body",
-  "--globoff",
-  "--include",
-  "--ipv4",
-  "--ipv6",
-  "--no-buffer",
-  "--no-keepalive",
-  "--no-progress-meter",
-  "--no-styled-output",
-  "--parallel",
-  "--parallel-immediate",
-  "--path-as-is",
-  "--progress-bar",
-  "--raw",
-  "--remote-header-name",
-  "--remote-name",
-  "--remote-time",
-  "--retry-connrefused",
-  "--show-error",
-  "--silent",
-  "--styled-output",
-  "--tcp-nodelay",
-  "--verbose",
-]);
-
-/**
- * `--compressed` asks cURL to advertise and transparently decode compressed
- * responses. Every client this project generates negotiates and decodes
- * compression on its own, so the generated code already behaves this way.
- */
-const TRANSPARENT_FLAGS: ReadonlySet<string> = new Set(["--compressed"]);
-
-/** Ignored options that consume the following argument. */
-const IGNORED_VALUE_OPTIONS: ReadonlySet<string> = new Set([
-  "-C",
-  "-D",
-  "-Y",
-  "-m",
-  "-o",
-  "-w",
-  "-y",
-  "--connect-timeout",
-  "--continue-at",
-  "--cookie-jar",
-  "--dump-header",
-  "--expect100-timeout",
-  "--happy-eyeballs-timeout-ms",
-  "--limit-rate",
-  "--max-filesize",
-  "--max-redirs",
-  "--max-time",
-  "--output",
-  "--retry",
-  "--retry-delay",
-  "--retry-max-time",
-  "--speed-limit",
-  "--speed-time",
-  "--stderr",
-  "--trace",
-  "--trace-ascii",
-  "--write-out",
-]);
-
-/**
- * Options that do change how the request reaches the server but have no
- * portable representation in the normalized model. Dropping them silently
- * would misrepresent the request, so each one raises a parse warning.
- */
-const WARNED_FLAGS: ReadonlyMap<string, string> = new Map([
-  ["-k", "TLS certificate verification was disabled"],
-  ["--insecure", "TLS certificate verification was disabled"],
-  ["--proxy-insecure", "proxy TLS certificate verification was disabled"],
-  ["--ssl-no-revoke", "TLS revocation checking was disabled"],
-  ["--http1.0", "a specific HTTP version was requested"],
-  ["--http1.1", "a specific HTTP version was requested"],
-  ["--http2", "a specific HTTP version was requested"],
-  ["--http2-prior-knowledge", "a specific HTTP version was requested"],
-  ["--http3", "a specific HTTP version was requested"],
-  ["--http3-only", "a specific HTTP version was requested"],
-  ["--tlsv1.2", "a specific TLS version was requested"],
-  ["--tlsv1.3", "a specific TLS version was requested"],
-]);
-
-const WARNED_VALUE_OPTIONS: ReadonlyMap<string, string> = new Map([
-  ["-x", "the request was routed through a proxy"],
-  ["--proxy", "the request was routed through a proxy"],
-  ["--preproxy", "the request was routed through a proxy"],
-  ["--socks4", "the request was routed through a proxy"],
-  ["--socks4a", "the request was routed through a proxy"],
-  ["--socks5", "the request was routed through a proxy"],
-  ["--socks5-hostname", "the request was routed through a proxy"],
-  ["--proxy-user", "proxy credentials were supplied"],
-  ["-E", "a client TLS certificate was supplied"],
-  ["--cert", "a client TLS certificate was supplied"],
-  ["--cert-type", "a client TLS certificate was supplied"],
-  ["--key", "a client TLS key was supplied"],
-  ["--key-type", "a client TLS key was supplied"],
-  ["--cacert", "a custom certificate authority was supplied"],
-  ["--capath", "a custom certificate authority was supplied"],
-  ["--pinnedpubkey", "a pinned public key was supplied"],
-  ["--ciphers", "a specific TLS cipher list was requested"],
-  ["--interface", "a specific local network interface was requested"],
-  ["--resolve", "a custom host resolution was supplied"],
-  ["--connect-to", "a custom connection target was supplied"],
-  ["--dns-servers", "custom DNS servers were supplied"],
-  ["--unix-socket", "the request was sent over a Unix domain socket"],
-  ["--abstract-unix-socket", "the request was sent over a Unix domain socket"],
-]);
+  | "upload-file"
+  | "form-string"
+  | "range"
+  | "time-cond"
+  | "oauth2-bearer";
 
 const VALUE_OPTIONS: ReadonlyMap<string, ValueOptionKind> = new Map([
   ["-X", "request"],
@@ -218,6 +94,14 @@ const VALUE_OPTIONS: ReadonlyMap<string, ValueOptionKind> = new Map([
   ["--url-query", "url-query"],
   ["-T", "upload-file"],
   ["--upload-file", "upload-file"],
+  // --data-ascii is a plain --data alias; cURL keeps it only for history.
+  ["--data-ascii", "data"],
+  ["--form-string", "form-string"],
+  ["-r", "range"],
+  ["--range", "range"],
+  ["-z", "time-cond"],
+  ["--time-cond", "time-cond"],
+  ["--oauth2-bearer", "oauth2-bearer"],
 ] as const);
 
 function optionAndInlineValue(value: string): {
@@ -259,6 +143,8 @@ const SHORT_VALUE_OPTIONS: readonly string[] = [
   "-x",
   "-Y",
   "-y",
+  "-r",
+  "-z",
 ];
 
 const SHORT_BOOLEAN_FLAGS: ReadonlySet<string> = new Set(
@@ -634,7 +520,9 @@ export function parseCurl(input: string): CurlParseResult {
       "Enter a cURL command to convert.",
     );
   const command = tokens[0]?.value;
-  if (command === undefined || !/(^|\/)curl$/u.test(command)) {
+  // PowerShell aliases `curl` to its own cmdlet, so copied commands name the
+  // executable outright. Windows paths also separate with a backslash.
+  if (command === undefined || !/(^|[/\\])curl(\.exe)?$/iu.test(command)) {
     throw new CurlParseError(
       "CURL_INVALID_COMMAND",
       "The command must start with curl.",
@@ -684,14 +572,40 @@ export function parseCurl(input: string): CurlParseResult {
       dataAsQuery = true;
       return true;
     }
-    if (IGNORED_FLAGS.has(option) || TRANSPARENT_FLAGS.has(option)) return true;
-    const warned = WARNED_FLAGS.get(option);
-    if (warned !== undefined) {
-      warnTransport(option, warned);
+    const spec = CURL_OPTION_INDEX.get(option);
+    // Only value-less options are resolved here; anything that consumes an
+    // argument has to go through the main loop so the argument is eaten too.
+    if (spec === undefined || spec.takesValue === true) return false;
+    return applyDisposition(spec, option);
+  };
+
+  /**
+   * Act on an option's classification. Returns true when the option has been
+   * dealt with and the caller should move on.
+   */
+  function applyDisposition(spec: CurlOptionSpec, option: string): boolean {
+    if (spec.disposition === "process" || spec.disposition === "transparent")
+      return true;
+    if (spec.disposition === "warn") {
+      warnTransport(option, spec.reason ?? "transfer behaviour was customized");
       return true;
     }
+    if (spec.disposition === "protocol") {
+      throw new UnsupportedCurlOptionError(
+        option,
+        `${option} belongs to a protocol other than HTTP, so it has no meaning in a converted HTTP request.`,
+      );
+    }
+    if (spec.disposition === "unrepresentable") {
+      throw new UnsupportedCurlOptionError(
+        option,
+        `${option} cannot be converted because ${spec.reason ?? "it cannot be resolved without running the request"}.`,
+      );
+    }
+    // A "supported" option must be handled explicitly by the caller; reaching
+    // here means the table and the parser have drifted apart.
     return false;
-  };
+  }
 
   const setUrl = (value: string): void => {
     if (url !== undefined)
@@ -724,11 +638,12 @@ export function parseCurl(input: string): CurlParseResult {
     const { option, inline } = optionAndInlineValue(current);
     const kind = VALUE_OPTIONS.get(option);
     if (kind === undefined) {
-      const warned = WARNED_VALUE_OPTIONS.get(option);
-      if (warned !== undefined || IGNORED_VALUE_OPTIONS.has(option)) {
-        if (warned !== undefined) warnTransport(option, warned);
-        // Consume the argument so it is never mistaken for the request URL.
-        if (inline === undefined) index += 1;
+      const spec = CURL_OPTION_INDEX.get(option);
+      if (spec !== undefined && spec.disposition !== "supported") {
+        // Consume the argument first so a rejected option's value is never
+        // mistaken for the request URL, then act on the classification.
+        if (inline === undefined && spec.takesValue === true) index += 1;
+        applyDisposition(spec, option);
         continue;
       }
       throw new UnsupportedCurlOptionError(option);
@@ -765,6 +680,51 @@ export function parseCurl(input: string): CurlParseResult {
       if (!headers.some((header) => header.name.toLowerCase() === "accept"))
         headers.push({ name: "Accept", value: "application/json" });
       data.push({ option: "data-raw", value });
+    } else if (kind === "form-string") {
+      // Unlike -F, the value is always literal: no @file or <file reading.
+      const separator = value.indexOf("=");
+      if (separator <= 0) {
+        throw new CurlParseError(
+          "CURL_INVALID_FORM",
+          `Invalid cURL form value: ${value}`,
+        );
+      }
+      forms.push({
+        kind: "field",
+        name: value.slice(0, separator),
+        value: value.slice(separator + 1),
+      });
+    } else if (kind === "range") {
+      // cURL accepts the range without the "bytes=" unit that the header needs.
+      if (!headers.some((header) => header.name.toLowerCase() === "range")) {
+        headers.push({
+          name: "Range",
+          value: /^[a-z-]+=/u.test(value) ? value : `bytes=${value}`,
+        });
+      }
+    } else if (kind === "time-cond") {
+      // A leading dash asks for the opposite comparison, and a leading + or
+      // nothing asks for If-Modified-Since.
+      const negated = value.startsWith("-");
+      const stamp = negated || value.startsWith("+") ? value.slice(1) : value;
+      if (stamp.startsWith("@") || /^\d+$/u.test(stamp)) {
+        throw new UnsupportedCurlOptionError(
+          "--time-cond",
+          "--time-cond cannot be converted because a file timestamp would have to be read from disk.",
+        );
+      }
+      headers.push({
+        name: negated ? "If-Unmodified-Since" : "If-Modified-Since",
+        value: stamp,
+      });
+    } else if (kind === "oauth2-bearer") {
+      if (value.length === 0) {
+        throw new CurlParseError(
+          "CURL_INVALID_AUTH",
+          "The cURL command contains an empty bearer token.",
+        );
+      }
+      auth = { kind: "bearer", token: value };
     } else if (kind === "url-query") {
       urlQuery.push({ option: "data-urlencode", value });
     } else if (kind === "upload-file") {
@@ -785,6 +745,9 @@ export function parseCurl(input: string): CurlParseResult {
       "CURL_MISSING_URL",
       "No URL found in the cURL command.",
     );
+  // cURL assumes http:// when the URL carries no scheme; normalize once here
+  // so every later step sees the same absolute URL.
+  url = withDefaultScheme(url);
   const urlDetails = splitRequestUrl(url);
   // `-G` moves the accumulated data into the query string, and `--url-query`
   // always targets the query regardless of the request method.
