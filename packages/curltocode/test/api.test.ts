@@ -149,6 +149,51 @@ describe("curltocode public API", () => {
         client: "resty",
         parserLanguage: "go",
       },
+      {
+        language: "java",
+        client: "httpclient",
+        parserLanguage: "java",
+      },
+      {
+        language: "java",
+        client: "okhttp",
+        parserLanguage: "java",
+      },
+      {
+        language: "java",
+        client: "apache",
+        parserLanguage: "java",
+      },
+      {
+        language: "csharp",
+        client: "httpclient",
+        parserLanguage: "csharp",
+      },
+      {
+        language: "csharp",
+        client: "restsharp",
+        parserLanguage: "csharp",
+      },
+      {
+        language: "ruby",
+        client: "nethttp",
+        parserLanguage: "ruby",
+      },
+      {
+        language: "ruby",
+        client: "faraday",
+        parserLanguage: "ruby",
+      },
+      {
+        language: "rust",
+        client: "reqwest",
+        parserLanguage: "rust",
+      },
+      {
+        language: "rust",
+        client: "ureq",
+        parserLanguage: "rust",
+      },
     ]);
   });
 

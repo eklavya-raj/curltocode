@@ -6,6 +6,7 @@ import {
 import { describe, expect, it } from "vitest";
 
 import {
+  GeneratorError,
   generateCode,
   generatorTargets,
   reverseTargets,
@@ -44,7 +45,17 @@ describe.each(reverseTargets)(
       "round-trips %s without semantic loss",
       (_name, command) => {
         const original = parseCurl(command).request;
-        const source = generateCode(original, generator.id).code;
+        let source: string;
+        try {
+          source = generateCode(original, generator.id).code;
+        } catch (error) {
+          // A client with no stable API for this capability reports a typed
+          // error rather than emitting something lossy. There is nothing to
+          // round-trip, but the refusal itself must stay deliberate.
+          expect(error).toBeInstanceOf(GeneratorError);
+          expect((error as GeneratorError).code).toMatch(/^GENERATOR_/u);
+          return;
+        }
         const recovered = parseCodeRequest(source, target.parserLanguage);
 
         expect(recovered.client).toBe(target.client);

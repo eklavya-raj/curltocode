@@ -9,10 +9,19 @@ import type {
 export type DynamicIssueKind = "url" | "method" | "headers" | "body" | "config";
 
 /** Source languages the reverse parsers can read. */
-export type ReverseLanguage = "javascript" | "python" | "php" | "go";
+export type ReverseLanguage =
+  "javascript" | "python" | "php" | "go" | "java" | "csharp" | "ruby" | "rust";
 
 export type ReverseTargetLanguage =
-  "javascript" | "typescript" | "python" | "php" | "go";
+  | "javascript"
+  | "typescript"
+  | "python"
+  | "php"
+  | "go"
+  | "java"
+  | "csharp"
+  | "ruby"
+  | "rust";
 
 /**
  * Clients the reverse parsers can recognise. This is a subset of the forward
@@ -28,7 +37,14 @@ export type ReverseClient =
   | "curl"
   | "guzzle"
   | "nethttp"
-  | "resty";
+  | "resty"
+  | "httpclient"
+  | "okhttp"
+  | "apache"
+  | "restsharp"
+  | "faraday"
+  | "reqwest"
+  | "ureq";
 
 export interface ReverseTarget {
   readonly language: ReverseTargetLanguage;
@@ -55,6 +71,15 @@ export const reverseTargets: readonly ReverseTarget[] = [
   { language: "php", client: "guzzle", parserLanguage: "php" },
   { language: "go", client: "nethttp", parserLanguage: "go" },
   { language: "go", client: "resty", parserLanguage: "go" },
+  { language: "java", client: "httpclient", parserLanguage: "java" },
+  { language: "java", client: "okhttp", parserLanguage: "java" },
+  { language: "java", client: "apache", parserLanguage: "java" },
+  { language: "csharp", client: "httpclient", parserLanguage: "csharp" },
+  { language: "csharp", client: "restsharp", parserLanguage: "csharp" },
+  { language: "ruby", client: "nethttp", parserLanguage: "ruby" },
+  { language: "ruby", client: "faraday", parserLanguage: "ruby" },
+  { language: "rust", client: "reqwest", parserLanguage: "rust" },
+  { language: "rust", client: "ureq", parserLanguage: "rust" },
 ];
 
 /** Human-readable name, used when reporting what was detected. */
@@ -69,6 +94,13 @@ export const REVERSE_CLIENT_LABELS: Record<ReverseClient, string> = {
   guzzle: "Guzzle",
   nethttp: "net/http",
   resty: "Resty",
+  httpclient: "HttpClient",
+  okhttp: "OkHttp",
+  apache: "Apache HttpClient",
+  restsharp: "RestSharp",
+  faraday: "Faraday",
+  reqwest: "reqwest",
+  ureq: "ureq",
 };
 
 export interface DynamicIssue {
