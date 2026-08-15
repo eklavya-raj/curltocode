@@ -22,6 +22,7 @@ related:
   - curl-to-rust
   - curl-to-java
   - curl-to-python
+  - go-to-curl
 ---
 
 ## How the Go output is structured

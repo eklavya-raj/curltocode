@@ -22,6 +22,7 @@ related:
   - curl-to-php
   - curl-to-php/guzzle
   - curl-to-python/requests
+  - php-to-curl/curl
 ---
 
 ## The closest possible mapping

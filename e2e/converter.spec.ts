@@ -53,6 +53,12 @@ const indexablePages = [
   ["/python-to-curl/aiohttp", "Convert Python aiohttp to cURL"],
   ["/python-to-curl/httpx", "Convert Python HTTPX to cURL"],
   ["/python-to-curl/requests", "Convert Python Requests to cURL"],
+  ["/php-to-curl", "Convert PHP to cURL"],
+  ["/php-to-curl/curl", "Convert PHP cURL to a cURL command"],
+  ["/php-to-curl/guzzle", "Convert Guzzle to a cURL command"],
+  ["/go-to-curl", "Convert Go to cURL"],
+  ["/go-to-curl/nethttp", "Convert Go net/http to a cURL command"],
+  ["/go-to-curl/resty", "Convert Go Resty to a cURL command"],
 ] as const;
 
 async function openConverter(page: Page): Promise<void> {
@@ -102,7 +108,7 @@ test("converts a static Fetch call back to cURL", async ({ page }) => {
   await openConverter(page);
   await page.getByRole("button", { name: "Code → cURL" }).click();
   await page
-    .getByLabel("JavaScript, TypeScript, or Python request code")
+    .getByLabel("Request code in any supported language")
     .fill(
       `fetch("https://api.example.com/users", { method: "DELETE", redirect: "manual" });`,
     );
@@ -116,7 +122,7 @@ test("reports dynamic Fetch expressions explicitly", async ({ page }) => {
   await openConverter(page);
   await page.getByRole("button", { name: "Code → cURL" }).click();
   await page
-    .getByLabel("JavaScript, TypeScript, or Python request code")
+    .getByLabel("Request code in any supported language")
     .fill("fetch(getApiUrl(), { headers: getHeaders() });");
   await expect(page.getByRole("alert")).toContainText(
     "Dynamic URL cannot be resolved statically",
@@ -138,7 +144,7 @@ test("reads Python back to cURL and reveals libraries after choosing a language"
   await expect(page.getByRole("combobox", { name: "Library" })).toHaveCount(0);
 
   await page
-    .getByLabel("JavaScript, TypeScript, or Python request code")
+    .getByLabel("Request code in any supported language")
     .fill(
       `import requests\nrequests.post("https://api.example.com/py", json={"name": "Ada"}, headers={"Authorization": "Bearer tok"})`,
     );
@@ -188,7 +194,8 @@ test("SEO pages keep their language and client for Code to cURL", async ({
 test("forward SEO pages without a reverse parser use auto-detect", async ({
   page,
 }) => {
-  await page.goto("/curl-to-go/resty");
+  // Rust still has no reverse parser; Go and PHP gained one.
+  await page.goto("/curl-to-rust/reqwest");
   await page
     .locator('[aria-label="cURL and code converter"][data-ready="true"]')
     .waitFor();
@@ -199,7 +206,7 @@ test("forward SEO pages without a reverse parser use auto-detect", async ({
   ).toHaveAttribute("data-value", "auto");
   await expect(page.getByRole("combobox", { name: "Library" })).toHaveCount(0);
   await expect(
-    page.getByLabel("JavaScript, TypeScript, or Python request code"),
+    page.getByLabel("Request code in any supported language"),
   ).toHaveValue(/fetch/u);
   await expect(page.getByLabel("Converted output")).toHaveValue(
     /curl 'https:\/\/api\.example\.com\/users'/u,
@@ -277,7 +284,7 @@ test("keeps converter groups and cards visually separated", async ({
   const groups = page.locator(".converter-group");
   const cards = page.locator(".converter-index-item");
   await expect(groups).toHaveCount(2);
-  await expect(cards).toHaveCount(12);
+  await expect(cards).toHaveCount(14);
 
   const [forwardBox, reverseBox] = await Promise.all([
     groups.first().boundingBox(),
@@ -445,7 +452,7 @@ test("converts a static Axios call and loads its AST parser on demand", async ({
   );
   await page.getByRole("button", { name: "Code → cURL" }).click();
   await page
-    .getByLabel("JavaScript, TypeScript, or Python request code")
+    .getByLabel("Request code in any supported language")
     .fill(
       `axios.post("https://api.example.com/users", { name: "Ada" }, { headers: { "X-Key": "local" } });`,
     );
@@ -477,7 +484,7 @@ test("reports invalid cURL without executing the represented request", async ({
     .getByLabel("cURL command")
     .fill("curl --netrc https://do-not-contact.invalid/private");
   await expect(page.getByRole("alert")).toContainText(
-    "Unsupported cURL option: --netrc",
+    "--netrc cannot be converted because credentials would have to be read from a .netrc file.",
   );
   expect(representedRequests).toEqual([]);
 });

@@ -22,6 +22,7 @@ related:
   - curl-to-go
   - curl-to-python/requests
   - curl-to-java/okhttp
+  - go-to-curl/resty
 ---
 
 ## Resty request construction

@@ -23,6 +23,7 @@ related:
   - curl-to-php/curl
   - curl-to-python/requests
   - curl-to-ruby/faraday
+  - php-to-curl/guzzle
 ---
 
 ## Guzzle request options

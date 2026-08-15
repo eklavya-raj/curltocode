@@ -22,6 +22,7 @@ related:
   - curl-to-go
   - curl-to-go/resty
   - curl-to-rust/reqwest
+  - go-to-curl/nethttp
 ---
 
 ## A complete program, no modules

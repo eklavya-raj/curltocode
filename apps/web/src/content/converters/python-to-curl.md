@@ -23,6 +23,7 @@ related:
   - python-to-curl/httpx
   - python-to-curl/aiohttp
   - curl-to-python
+  - php-to-curl
 ---
 
 ## Requests, HTTPX, and aiohttp source

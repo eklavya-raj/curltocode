@@ -24,6 +24,7 @@ related:
   - javascript-to-curl/undici
   - typescript-to-curl
   - curl-to-javascript
+  - go-to-curl
 ---
 
 ## Static analysis instead of execution
