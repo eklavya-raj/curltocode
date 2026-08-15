@@ -22,6 +22,7 @@ related:
   - curl-to-rust
   - curl-to-go/resty
   - curl-to-java/apache-httpclient
+  - rust-to-curl/ureq
 ---
 
 ## A synchronous stable API

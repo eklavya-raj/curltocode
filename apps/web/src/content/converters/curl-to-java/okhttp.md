@@ -22,6 +22,7 @@ related:
   - curl-to-java/httpclient
   - curl-to-java
   - curl-to-go
+  - java-to-curl/okhttp
 ---
 
 ## OkHttp-specific output

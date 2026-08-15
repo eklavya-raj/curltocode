@@ -22,6 +22,7 @@ related:
   - curl-to-java/httpclient
   - curl-to-java/okhttp
   - curl-to-java
+  - java-to-curl/apache
 ---
 
 ## HttpClient 5 request model

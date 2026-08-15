@@ -76,6 +76,10 @@ const sourceIcons: Record<SourceLanguage, IconDefinition> = {
   javascript: { type: "brand", icon: siJavascript },
   php: { type: "brand", icon: siPhp },
   go: { type: "brand", icon: siGo },
+  java: { type: "brand", icon: siOpenjdk },
+  csharp: { type: "brand", icon: siDotnet },
+  ruby: { type: "brand", icon: siRuby },
+  rust: { type: "brand", icon: siRust },
   typescript: { type: "brand", icon: siTypescript },
   python: { type: "brand", icon: siPython },
 };

@@ -22,6 +22,7 @@ related:
   - curl-to-csharp
   - curl-to-go
   - curl-to-rust
+  - java-to-curl
 ---
 
 ## Three clients, three sets of trade-offs

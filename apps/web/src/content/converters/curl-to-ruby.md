@@ -22,6 +22,7 @@ related:
   - curl-to-python
   - curl-to-php
   - curl-to-go
+  - ruby-to-curl
 ---
 
 ## How the Ruby output is structured

@@ -22,6 +22,7 @@ related:
   - curl-to-go
   - curl-to-java
   - curl-to-typescript
+  - rust-to-curl
 ---
 
 ## How the Rust output is structured

@@ -23,6 +23,7 @@ related:
   - curl-to-csharp/httpclient
   - curl-to-java/apache-httpclient
   - curl-to-typescript
+  - csharp-to-curl/restsharp
 ---
 
 ## Current RestSharp output

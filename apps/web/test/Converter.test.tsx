@@ -362,7 +362,10 @@ describe("Converter", () => {
     expect(screen.getByText("Parsed as Python HTTPX.")).toBeVisible();
   });
 
-  it("falls back to auto-detect when a forward page has no reverse parser", async () => {
+  it("preselects the matching reverse parser on every forward page", async () => {
+    // Every registered target now reads back, so a forward page opens Code to
+    // cURL already pointed at its own language and library rather than falling
+    // back to auto-detect.
     const user = userEvent.setup();
     render(
       <Converter
@@ -376,15 +379,17 @@ describe("Converter", () => {
 
     expect(screen.getByRole("combobox", { name: "Language" })).toHaveAttribute(
       "data-value",
-      "auto",
+      "rust",
     );
-    expect(screen.queryByRole("combobox", { name: "Library" })).toBeNull();
-    expect(valueOf("Request code in any supported language")).toContain(
-      "fetch",
+    expect(screen.getByRole("combobox", { name: "Library" })).toHaveAttribute(
+      "data-value",
+      "reqwest",
     );
     await waitFor(() =>
+      // The reqwest example carries the page's query parameters, so match the
+      // command prefix rather than a bare URL.
       expect(valueOf("Converted output")).toContain(
-        "curl 'https://api.example.com/users'",
+        "curl 'https://api.example.com/users",
       ),
     );
   });

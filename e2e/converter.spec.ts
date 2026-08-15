@@ -59,6 +59,19 @@ const indexablePages = [
   ["/go-to-curl", "Convert Go to cURL"],
   ["/go-to-curl/nethttp", "Convert Go net/http to a cURL command"],
   ["/go-to-curl/resty", "Convert Go Resty to a cURL command"],
+  ["/java-to-curl", "Convert Java to cURL"],
+  ["/java-to-curl/httpclient", "Convert Java HttpClient to a cURL command"],
+  ["/java-to-curl/okhttp", "Convert Java OkHttp to a cURL command"],
+  ["/java-to-curl/apache", "Convert Apache HttpClient to a cURL command"],
+  ["/csharp-to-curl", "Convert C# to cURL"],
+  ["/csharp-to-curl/httpclient", "Convert C# HttpClient to a cURL command"],
+  ["/csharp-to-curl/restsharp", "Convert C# RestSharp to a cURL command"],
+  ["/ruby-to-curl", "Convert Ruby to cURL"],
+  ["/ruby-to-curl/nethttp", "Convert Ruby Net::HTTP to a cURL command"],
+  ["/ruby-to-curl/faraday", "Convert Ruby Faraday to a cURL command"],
+  ["/rust-to-curl", "Convert Rust to cURL"],
+  ["/rust-to-curl/reqwest", "Convert Rust reqwest to a cURL command"],
+  ["/rust-to-curl/ureq", "Convert Rust ureq to a cURL command"],
 ] as const;
 
 async function openConverter(page: Page): Promise<void> {
@@ -194,8 +207,9 @@ test("SEO pages keep their language and client for Code to cURL", async ({
 test("forward SEO pages without a reverse parser use auto-detect", async ({
   page,
 }) => {
-  // Rust still has no reverse parser; Go and PHP gained one.
-  await page.goto("/curl-to-rust/reqwest");
+  // Every registered target now has a reverse parser, so this checks the
+  // homepage default rather than a fallback.
+  await page.goto("/");
   await page
     .locator('[aria-label="cURL and code converter"][data-ready="true"]')
     .waitFor();
@@ -284,7 +298,7 @@ test("keeps converter groups and cards visually separated", async ({
   const groups = page.locator(".converter-group");
   const cards = page.locator(".converter-index-item");
   await expect(groups).toHaveCount(2);
-  await expect(cards).toHaveCount(14);
+  await expect(cards).toHaveCount(18);
 
   const [forwardBox, reverseBox] = await Promise.all([
     groups.first().boundingBox(),

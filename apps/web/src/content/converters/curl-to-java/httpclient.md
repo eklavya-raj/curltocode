@@ -22,6 +22,7 @@ related:
   - curl-to-java/okhttp
   - curl-to-java
   - curl-to-csharp
+  - java-to-curl/httpclient
 ---
 
 ## HttpClient-specific output

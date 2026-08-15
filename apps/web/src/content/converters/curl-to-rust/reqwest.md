@@ -22,6 +22,7 @@ related:
   - curl-to-rust
   - curl-to-rust/ureq
   - curl-to-go/nethttp
+  - rust-to-curl/reqwest
 ---
 
 ## The default Rust HTTP client

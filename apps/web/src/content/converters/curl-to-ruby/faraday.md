@@ -23,6 +23,7 @@ related:
   - curl-to-ruby/nethttp
   - curl-to-php/guzzle
   - curl-to-python/httpx
+  - ruby-to-curl/faraday
 ---
 
 ## Connection and middleware setup

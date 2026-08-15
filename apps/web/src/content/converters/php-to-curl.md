@@ -23,6 +23,7 @@ related:
   - php-to-curl/guzzle
   - curl-to-php
   - go-to-curl
+  - csharp-to-curl
 ---
 
 ## The cURL extension and Guzzle

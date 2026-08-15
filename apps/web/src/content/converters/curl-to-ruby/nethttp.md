@@ -22,6 +22,7 @@ related:
   - curl-to-ruby
   - curl-to-ruby/faraday
   - curl-to-python/requests
+  - ruby-to-curl/nethttp
 ---
 
 ## Standard library, no Gemfile

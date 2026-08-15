@@ -23,6 +23,7 @@ related:
   - go-to-curl/resty
   - curl-to-go
   - php-to-curl
+  - java-to-curl
 ---
 
 ## net/http and Resty source

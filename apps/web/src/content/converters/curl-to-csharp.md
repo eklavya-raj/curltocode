@@ -22,6 +22,7 @@ related:
   - curl-to-java
   - curl-to-go
   - curl-to-typescript
+  - csharp-to-curl
 ---
 
 ## How the C# output is structured

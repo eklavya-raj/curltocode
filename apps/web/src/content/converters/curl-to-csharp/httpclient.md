@@ -22,6 +22,7 @@ related:
   - curl-to-csharp
   - curl-to-csharp/restsharp
   - curl-to-java/httpclient
+  - csharp-to-curl/httpclient
 ---
 
 ## Base class library only
