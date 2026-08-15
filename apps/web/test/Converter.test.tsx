@@ -209,7 +209,7 @@ describe("Converter", () => {
     );
     await user.click(screen.getByRole("button", { name: "Code → cURL" }));
     const codeInput = screen.getByLabelText(
-      "JavaScript, TypeScript, or Python request code",
+      "Request code in any supported language",
     );
     fireEvent.change(codeInput, {
       target: { value: "fetch(getApiUrl(), { headers: getHeaders() });" },
@@ -366,8 +366,8 @@ describe("Converter", () => {
     const user = userEvent.setup();
     render(
       <Converter
-        initialLanguage="go"
-        initialClient="resty"
+        initialLanguage="rust"
+        initialClient="reqwest"
         reverseStrategy="selected-target"
       />,
     );
@@ -379,7 +379,7 @@ describe("Converter", () => {
       "auto",
     );
     expect(screen.queryByRole("combobox", { name: "Library" })).toBeNull();
-    expect(valueOf("JavaScript, TypeScript, or Python request code")).toContain(
+    expect(valueOf("Request code in any supported language")).toContain(
       "fetch",
     );
     await waitFor(() =>
@@ -416,7 +416,7 @@ describe("Converter", () => {
     render(<Converter />);
     await user.click(screen.getByRole("button", { name: "Code → cURL" }));
     fireEvent.change(
-      screen.getByLabelText("JavaScript, TypeScript, or Python request code"),
+      screen.getByLabelText("Request code in any supported language"),
       {
         target: {
           value: `requests.get("https://api.example.com/py", headers={"Accept": "application/json"})`,

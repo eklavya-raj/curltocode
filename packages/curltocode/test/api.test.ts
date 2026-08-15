@@ -129,6 +129,26 @@ describe("curltocode public API", () => {
         client: "aiohttp",
         parserLanguage: "python",
       },
+      {
+        language: "php",
+        client: "curl",
+        parserLanguage: "php",
+      },
+      {
+        language: "php",
+        client: "guzzle",
+        parserLanguage: "php",
+      },
+      {
+        language: "go",
+        client: "nethttp",
+        parserLanguage: "go",
+      },
+      {
+        language: "go",
+        client: "resty",
+        parserLanguage: "go",
+      },
     ]);
   });
 

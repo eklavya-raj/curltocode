@@ -9,16 +9,26 @@ import type {
 export type DynamicIssueKind = "url" | "method" | "headers" | "body" | "config";
 
 /** Source languages the reverse parsers can read. */
-export type ReverseLanguage = "javascript" | "python";
+export type ReverseLanguage = "javascript" | "python" | "php" | "go";
 
-export type ReverseTargetLanguage = "javascript" | "typescript" | "python";
+export type ReverseTargetLanguage =
+  "javascript" | "typescript" | "python" | "php" | "go";
 
 /**
  * Clients the reverse parsers can recognise. This is a subset of the forward
  * registry: a target only appears once a parser exists that can read it back.
  */
 export type ReverseClient =
-  "fetch" | "axios" | "undici" | "requests" | "httpx" | "aiohttp";
+  | "fetch"
+  | "axios"
+  | "undici"
+  | "requests"
+  | "httpx"
+  | "aiohttp"
+  | "curl"
+  | "guzzle"
+  | "nethttp"
+  | "resty";
 
 export interface ReverseTarget {
   readonly language: ReverseTargetLanguage;
@@ -41,6 +51,10 @@ export const reverseTargets: readonly ReverseTarget[] = [
   { language: "python", client: "requests", parserLanguage: "python" },
   { language: "python", client: "httpx", parserLanguage: "python" },
   { language: "python", client: "aiohttp", parserLanguage: "python" },
+  { language: "php", client: "curl", parserLanguage: "php" },
+  { language: "php", client: "guzzle", parserLanguage: "php" },
+  { language: "go", client: "nethttp", parserLanguage: "go" },
+  { language: "go", client: "resty", parserLanguage: "go" },
 ];
 
 /** Human-readable name, used when reporting what was detected. */
@@ -51,6 +65,10 @@ export const REVERSE_CLIENT_LABELS: Record<ReverseClient, string> = {
   requests: "Requests",
   httpx: "HTTPX",
   aiohttp: "aiohttp",
+  curl: "cURL extension",
+  guzzle: "Guzzle",
+  nethttp: "net/http",
+  resty: "Resty",
 };
 
 export interface DynamicIssue {

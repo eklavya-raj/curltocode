@@ -68,11 +68,14 @@ const clientIcons: Record<Client, IconDefinition> = {
  * JavaScript AST parser also understands TypeScript syntax, but the UI keeps
  * the languages separate so an explicit selection reflects the pasted code.
  */
-export type SourceLanguage = "auto" | "javascript" | "typescript" | "python";
+export type SourceLanguage =
+  "auto" | "javascript" | "typescript" | "python" | "php" | "go";
 
 const sourceIcons: Record<SourceLanguage, IconDefinition> = {
   auto: { type: "monogram", text: "A" },
   javascript: { type: "brand", icon: siJavascript },
+  php: { type: "brand", icon: siPhp },
+  go: { type: "brand", icon: siGo },
   typescript: { type: "brand", icon: siTypescript },
   python: { type: "brand", icon: siPython },
 };

@@ -604,7 +604,7 @@ export default function Converter({
               ? "cURL command"
               : sourceLanguage !== "auto"
                 ? `${targetLabel(sourceLanguage, sourceClient)} request code`
-                : "JavaScript, TypeScript, or Python request code"}
+                : "Request code in any supported language"}
           </label>
           <textarea
             id="converter-input"

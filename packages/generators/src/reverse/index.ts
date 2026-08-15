@@ -1,4 +1,6 @@
 import { parseJavaScriptRequest } from "./javascript.js";
+import { parseGoRequest } from "./go/index.js";
+import { parsePhpRequest } from "./php/index.js";
 import { parsePythonRequest } from "./python/index.js";
 import { CodeParseError } from "./types.js";
 import type { ReverseLanguage, ReverseParseResult } from "./types.js";
@@ -6,6 +8,8 @@ import type { ReverseLanguage, ReverseParseResult } from "./types.js";
 export * from "./javascript.js";
 export * from "./types.js";
 export { parsePythonRequest } from "./python/index.js";
+export { parsePhpRequest } from "./php/index.js";
+export { parseGoRequest } from "./go/index.js";
 
 /**
  * Pick a parser from the source itself.
@@ -18,6 +22,22 @@ export { parsePythonRequest } from "./python/index.js";
 export function detectReverseLanguage(
   source: string,
 ): ReverseLanguage | undefined {
+  // PHP is checked first: its markers are unambiguous, and a `<?php` file can
+  // otherwise trip the generic JavaScript keyword heuristic.
+  const php =
+    /<\?php/u.test(source) ||
+    /\bcurl_(?:init|setopt|setopt_array|exec)\s*\(/u.test(source) ||
+    /\bGuzzleHttp\\/u.test(source) ||
+    /\$\w+\s*->\s*(?:request|get|post|put|patch|delete)\s*\(/u.test(source);
+  if (php) return "php";
+
+  // Go's package clause and := binding are unambiguous markers.
+  const go =
+    /^\s*package\s+\w+/mu.test(source) ||
+    /\bhttp\.NewRequest(?:WithContext)?\s*\(/u.test(source) ||
+    /\bresty\.New\s*\(/u.test(source);
+  if (go) return "go";
+
   const python =
     /^\s*(?:import|from)\s+(?:requests|httpx|aiohttp)\b/mu.test(source) ||
     /\b(?:requests|httpx|aiohttp)\.[A-Za-z_]/u.test(source);
@@ -47,9 +67,11 @@ export function parseCodeRequest(
   const resolved = language ?? detectReverseLanguage(source);
   if (resolved === undefined) {
     throw new CodeParseError(
-      "No supported request was found. Reverse conversion currently reads JavaScript and TypeScript (Fetch, Axios, Undici) and Python (Requests, HTTPX, aiohttp).",
+      "No supported request was found. Reverse conversion currently reads JavaScript and TypeScript (Fetch, Axios, Undici), Python (Requests, HTTPX, aiohttp), PHP (cURL extension, Guzzle), and Go (net/http, Resty).",
     );
   }
+  if (resolved === "php") return parsePhpRequest(source);
+  if (resolved === "go") return parseGoRequest(source);
   return resolved === "python"
     ? parsePythonRequest(source)
     : parseJavaScriptRequest(source);
