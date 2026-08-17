@@ -1,5 +1,6 @@
 import { parseJavaScriptRequest } from "./javascript.js";
 import { parseGoRequest } from "./go/index.js";
+import { looksLikeHttpMessage, parseHttpMessageRequest } from "./http/index.js";
 import { parseCsharpRequest } from "./csharp/index.js";
 import { parseRubyRequest } from "./ruby/index.js";
 import { parseRustRequest } from "./rust/index.js";
@@ -18,6 +19,7 @@ export { parseJavaRequest } from "./java/index.js";
 export { parseCsharpRequest } from "./csharp/index.js";
 export { parseRubyRequest } from "./ruby/index.js";
 export { parseRustRequest } from "./rust/index.js";
+export { looksLikeHttpMessage, parseHttpMessageRequest } from "./http/index.js";
 
 /**
  * Pick a parser from the source itself.
@@ -30,8 +32,13 @@ export { parseRustRequest } from "./rust/index.js";
 export function detectReverseLanguage(
   source: string,
 ): ReverseLanguage | undefined {
-  // PHP is checked first: its markers are unambiguous, and a `<?php` file can
-  // otherwise trip the generic JavaScript keyword heuristic.
+  // A request line is checked before any language, because it is the one shape
+  // here that is decided by a grammar rather than by a heuristic: nothing else
+  // opens with a method, a target, and an HTTP version.
+  if (looksLikeHttpMessage(source)) return "http";
+
+  // PHP is checked first among the languages: its markers are unambiguous, and
+  // a `<?php` file can otherwise trip the generic JavaScript keyword heuristic.
   const php =
     /<\?php/u.test(source) ||
     /\bcurl_(?:init|setopt|setopt_array|exec)\s*\(/u.test(source) ||
@@ -105,9 +112,10 @@ export function parseCodeRequest(
   const resolved = language ?? detectReverseLanguage(source);
   if (resolved === undefined) {
     throw new CodeParseError(
-      "No supported request was found. Reverse conversion currently reads JavaScript and TypeScript (Fetch, Axios, Undici), Python (Requests, HTTPX, aiohttp), PHP (cURL extension, Guzzle), Go (net/http, Resty), Java (HttpClient, OkHttp, Apache), C# (HttpClient, RestSharp), Ruby (Net::HTTP, Faraday), and Rust (reqwest, ureq).",
+      "No supported request was found. Reverse conversion currently reads JavaScript and TypeScript (Fetch, Axios, Undici), Python (Requests, HTTPX, aiohttp), PHP (cURL extension, Guzzle), Go (net/http, Resty), Java (HttpClient, OkHttp, Apache), C# (HttpClient, RestSharp), Ruby (Net::HTTP, Faraday), Rust (reqwest, ureq), and raw HTTP/1.1 request messages.",
     );
   }
+  if (resolved === "http") return parseHttpMessageRequest(source);
   if (resolved === "php") return parsePhpRequest(source);
   if (resolved === "go") return parseGoRequest(source);
   if (resolved === "java") return parseJavaRequest(source);

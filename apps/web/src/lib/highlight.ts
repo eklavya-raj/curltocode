@@ -27,6 +27,9 @@ const LANGUAGE_GRAMMARS: Record<GeneratorLanguage, string> = {
   csharp: "csharp",
   ruby: "ruby",
   rust: "rust",
+  // Shiki ships a grammar for request messages themselves, which highlights the
+  // request line and header names rather than treating the block as plain text.
+  http: "http",
 };
 
 const GRAMMARS = [CURL_LANGUAGE, ...new Set(Object.values(LANGUAGE_GRAMMARS))];

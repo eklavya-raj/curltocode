@@ -12,6 +12,7 @@ const LANGUAGES = [
   "csharp",
   "ruby",
   "rust",
+  "http",
 ] as const;
 
 const CLIENTS = [
@@ -32,6 +33,7 @@ const CLIENTS = [
   "faraday",
   "reqwest",
   "ureq",
+  "raw",
 ] as const;
 
 /**

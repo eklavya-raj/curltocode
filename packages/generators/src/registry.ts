@@ -6,6 +6,7 @@ import { CsharpGenerator } from "./forward/csharp.js";
 import { FaradayGenerator } from "./forward/faraday.js";
 import { GoGenerator } from "./forward/go.js";
 import { GuzzleGenerator } from "./forward/guzzle.js";
+import { HttpMessageGenerator } from "./forward/http.js";
 import { JavaGenerator } from "./forward/java.js";
 import { JavaScriptGenerator } from "./forward/javascript.js";
 import { PhpGenerator } from "./forward/php.js";
@@ -46,6 +47,7 @@ const generators: readonly CodeGenerator[] = [
   new FaradayGenerator(),
   new RustGenerator(),
   new UreqGenerator(),
+  new HttpMessageGenerator(),
 ];
 
 export const generatorRegistry: ReadonlyMap<GeneratorId, CodeGenerator> =

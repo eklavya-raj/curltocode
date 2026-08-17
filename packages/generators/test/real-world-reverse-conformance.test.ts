@@ -10,7 +10,9 @@ import {
   generateCode,
   generatorTargets,
   reverseTargets,
+  targetsWithoutRedirectPolicy,
 } from "../src/index.js";
+import type { HttpRequest } from "@curltocode/core";
 import { parseCodeRequest } from "../src/reverse/index.js";
 import { REAL_WORLD_REQUESTS } from "./real-world-fixtures.js";
 
@@ -28,9 +30,18 @@ const REVERSE_REQUESTS = {
   -F 'tag=beta'`,
 } as const;
 
+/** Compare everything except the redirect policy. */
+const withoutRedirectPolicy = (request: HttpRequest): HttpRequest => ({
+  ...request,
+  options: { ...request.options, followRedirects: false },
+});
+
 describe.each(reverseTargets)(
   "$language-$client real-world reverse conformance",
   (target) => {
+    const carriesRedirectPolicy = !targetsWithoutRedirectPolicy.includes(
+      target.client,
+    );
     const generator = generatorTargets.find(
       ({ language, client }) =>
         language === target.language && client === target.client,
@@ -59,14 +70,27 @@ describe.each(reverseTargets)(
         const recovered = parseCodeRequest(source, target.parserLanguage);
 
         expect(recovered.client).toBe(target.client);
+        if (!carriesRedirectPolicy) {
+          // The format has no field for it, so the recovered request keeps the
+          // default instead of guessing. Asserting that here keeps the
+          // exemption from quietly covering a parser that simply lost the
+          // value; everything else still has to survive intact.
+          expect(recovered.request.options.followRedirects).toBe(false);
+        }
+        const left = carriesRedirectPolicy
+          ? original
+          : withoutRedirectPolicy(original);
+        const right = carriesRedirectPolicy
+          ? recovered.request
+          : withoutRedirectPolicy(recovered.request);
         expect(
-          requestsAreSemanticallyEqual(original, recovered.request),
+          requestsAreSemanticallyEqual(left, right),
           JSON.stringify(
             {
               target,
               source,
-              original: normalizeRequest(original),
-              recovered: normalizeRequest(recovered.request),
+              original: normalizeRequest(left),
+              recovered: normalizeRequest(right),
             },
             null,
             2,

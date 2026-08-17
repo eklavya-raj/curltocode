@@ -10,7 +10,15 @@ export type DynamicIssueKind = "url" | "method" | "headers" | "body" | "config";
 
 /** Source languages the reverse parsers can read. */
 export type ReverseLanguage =
-  "javascript" | "python" | "php" | "go" | "java" | "csharp" | "ruby" | "rust";
+  | "javascript"
+  | "python"
+  | "php"
+  | "go"
+  | "java"
+  | "csharp"
+  | "ruby"
+  | "rust"
+  | "http";
 
 export type ReverseTargetLanguage =
   | "javascript"
@@ -21,7 +29,8 @@ export type ReverseTargetLanguage =
   | "java"
   | "csharp"
   | "ruby"
-  | "rust";
+  | "rust"
+  | "http";
 
 /**
  * Clients the reverse parsers can recognise. This is a subset of the forward
@@ -44,7 +53,8 @@ export type ReverseClient =
   | "restsharp"
   | "faraday"
   | "reqwest"
-  | "ureq";
+  | "ureq"
+  | "raw";
 
 export interface ReverseTarget {
   readonly language: ReverseTargetLanguage;
@@ -80,7 +90,17 @@ export const reverseTargets: readonly ReverseTarget[] = [
   { language: "ruby", client: "faraday", parserLanguage: "ruby" },
   { language: "rust", client: "reqwest", parserLanguage: "rust" },
   { language: "rust", client: "ureq", parserLanguage: "rust" },
+  { language: "http", client: "raw", parserLanguage: "http" },
 ];
+
+/**
+ * Targets whose output cannot carry the client's redirect policy.
+ *
+ * A raw request message describes one exchange. Whether a 3xx is followed is
+ * decided afterwards, by the client, so `-L` has nowhere to live and cannot be
+ * expected to survive a round trip.
+ */
+export const targetsWithoutRedirectPolicy: readonly ReverseClient[] = ["raw"];
 
 /** Human-readable name, used when reporting what was detected. */
 export const REVERSE_CLIENT_LABELS: Record<ReverseClient, string> = {
@@ -101,6 +121,7 @@ export const REVERSE_CLIENT_LABELS: Record<ReverseClient, string> = {
   faraday: "Faraday",
   reqwest: "reqwest",
   ureq: "ureq",
+  raw: "raw HTTP/1.1",
 };
 
 export interface DynamicIssue {

@@ -9,7 +9,9 @@ export type GeneratorLanguage =
   | "java"
   | "csharp"
   | "ruby"
-  | "rust";
+  | "rust"
+  /** Not a programming language: the request message itself. */
+  | "http";
 
 export type GeneratorClient =
   | "fetch"
@@ -28,7 +30,8 @@ export type GeneratorClient =
   | "restsharp"
   | "faraday"
   | "reqwest"
-  | "ureq";
+  | "ureq"
+  | "raw";
 
 export type GeneratorId =
   | "javascript-fetch"
@@ -52,7 +55,8 @@ export type GeneratorId =
   | "ruby-nethttp"
   | "ruby-faraday"
   | "rust-reqwest"
-  | "rust-ureq";
+  | "rust-ureq"
+  | "http-raw";
 
 export interface GeneratedCode {
   readonly code: string;

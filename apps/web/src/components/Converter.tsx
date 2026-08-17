@@ -65,6 +65,7 @@ const languageLabels: Record<Language, string> = {
   csharp: "C#",
   ruby: "Ruby",
   rust: "Rust",
+  http: "HTTP",
 };
 
 const clientLabels: Record<Client, string> = {
@@ -85,19 +86,21 @@ const clientLabels: Record<Client, string> = {
   faraday: "Faraday",
   reqwest: "reqwest",
   ureq: "ureq",
+  raw: "Raw request",
 };
 
 /**
- * Reverse conversion reads fewer languages than the registry targets, so this
- * list is written out rather than derived. "Auto" is first because detection is
- * right for nearly every paste; the explicit entries exist for the cases where
- * a snippet is too short to classify, or is deliberately being tested.
+ * Source languages offered for an explicit choice, derived from the reverse
+ * registry so a newly readable language cannot go missing from the menu. "Auto"
+ * is first because detection is right for nearly every paste; the explicit
+ * entries exist for the cases where a snippet is too short to classify, or is
+ * deliberately being tested.
  */
 const SOURCE_OPTIONS: readonly { label: string; value: SourceLanguage }[] = [
   { label: "Auto-detect", value: "auto" },
-  { label: "JavaScript", value: "javascript" },
-  { label: "TypeScript", value: "typescript" },
-  { label: "Python", value: "python" },
+  ...Array.from(
+    new Set(supportedReverseTargets.map(({ language }) => language)),
+  ).map((value) => ({ label: languageLabels[value], value })),
 ];
 
 const LANGUAGES = Array.from(

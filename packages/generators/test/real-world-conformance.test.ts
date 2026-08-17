@@ -17,7 +17,19 @@ interface TargetProfile {
   readonly duplicateHeaders: "preserve" | GeneratorErrorCode;
   readonly duplicateCookies: "preserve" | GeneratorErrorCode;
   readonly customMethod: "preserve" | GeneratorErrorCode;
-  readonly redirects: "preserve" | GeneratorErrorCode;
+  /**
+   * `unrepresentable` is for a target whose output format has nowhere to put
+   * redirect policy. It is not a limitation to refuse over — the request itself
+   * is still exact — but the flag must then make no difference at all, which is
+   * asserted rather than assumed.
+   */
+  readonly redirects: "preserve" | "unrepresentable" | GeneratorErrorCode;
+  /**
+   * How the target writes the request URL. Client targets embed the absolute
+   * URL; a raw message splits it into an origin-form target and a Host header,
+   * which is the format's defining property rather than a gap in it.
+   */
+  readonly urlForm?: "absolute" | "origin";
   readonly multipartFile: "preserve" | GeneratorErrorCode;
   readonly binaryFile: "preserve" | GeneratorErrorCode;
 }
@@ -245,6 +257,19 @@ const profiles = {
     multipartFile: "GENERATOR_UNSUPPORTED_BODY",
     binaryFile: "preserve",
   },
+  "http-raw": {
+    signature: " HTTP/1.1",
+    dependency: undefined,
+    duplicateHeaders: "preserve",
+    duplicateCookies: "preserve",
+    customMethod: "preserve",
+    redirects: "unrepresentable",
+    // A message carries the bytes it sends, and the contents of a local file
+    // are not known at conversion time.
+    multipartFile: "GENERATOR_FILE_REFERENCE",
+    binaryFile: "GENERATOR_FILE_REFERENCE",
+    urlForm: "origin",
+  },
 } as const satisfies Readonly<Record<GeneratorId, TargetProfile>>;
 
 function result(command: string, id: GeneratorId) {
@@ -283,7 +308,9 @@ describe("real-world target profiles", () => {
 });
 
 describe.each(generatorTargets)("$id real-world conformance", (target) => {
-  const profile = profiles[target.id];
+  // Widened to the interface so the optional fields are readable; the literal
+  // types are still checked by the `satisfies` on the table itself.
+  const profile: TargetProfile = profiles[target.id];
 
   it("reports accurate registry metadata and dependency guidance", () => {
     const generated = result(REAL_WORLD_REQUESTS.health, target.id);
@@ -295,9 +322,16 @@ describe.each(generatorTargets)("$id real-world conformance", (target) => {
 
   it("preserves encoded and duplicate query parameters plus request headers", () => {
     const generated = code(REAL_WORLD_REQUESTS.search, target.id);
-    expect(generated).toContain(
-      "https://api.example.com/v1/search?q=hello+world&tag=typescript&tag=security",
-    );
+    if (profile.urlForm === "origin") {
+      expect(generated).toContain(
+        "GET /v1/search?q=hello+world&tag=typescript&tag=security HTTP/1.1",
+      );
+      expect(generated).toContain("Host: api.example.com");
+    } else {
+      expect(generated).toContain(
+        "https://api.example.com/v1/search?q=hello+world&tag=typescript&tag=security",
+      );
+    }
     expect(generated).toContain("Accept");
     expect(generated).toContain("application/json");
     expect(generated).toContain("X-Request-ID");
@@ -343,6 +377,18 @@ describe.each(generatorTargets)("$id real-world conformance", (target) => {
   });
 
   it("preserves redirect policy or returns the documented limitation", () => {
+    if (profile.redirects === "unrepresentable") {
+      // With nowhere to record the policy, -L has to make no difference at
+      // all. Asserting that keeps a genuinely dropped flag from passing here
+      // as though the format had handled it.
+      expect(
+        code(
+          REAL_WORLD_REQUESTS.search.replace("curl ", "curl -L "),
+          target.id,
+        ),
+      ).toBe(code(REAL_WORLD_REQUESTS.search, target.id));
+      return;
+    }
     expectCapability(
       REAL_WORLD_REQUESTS.search.replace("curl ", "curl -L "),
       target.id,

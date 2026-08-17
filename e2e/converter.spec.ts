@@ -37,6 +37,7 @@ const indexablePages = [
   ["/curl-to-rust", "Convert cURL to Rust"],
   ["/curl-to-rust/reqwest", "Convert cURL to Rust reqwest"],
   ["/curl-to-rust/ureq", "Convert cURL to Rust ureq"],
+  ["/curl-to-http", "Convert cURL to a raw HTTP request"],
   ["/curl-to-typescript", "Convert cURL to TypeScript"],
   ["/curl-to-typescript/axios", "Convert cURL to TypeScript Axios"],
   ["/curl-to-typescript/fetch", "Convert cURL to TypeScript Fetch"],
@@ -72,6 +73,7 @@ const indexablePages = [
   ["/rust-to-curl", "Convert Rust to cURL"],
   ["/rust-to-curl/reqwest", "Convert Rust reqwest to a cURL command"],
   ["/rust-to-curl/ureq", "Convert Rust ureq to a cURL command"],
+  ["/http-to-curl", "Convert a raw HTTP request to cURL"],
 ] as const;
 
 async function openConverter(page: Page): Promise<void> {
@@ -295,10 +297,17 @@ test("keeps converter groups and cards visually separated", async ({
 }) => {
   await page.goto("/converters");
 
+  // Derived from the page list above rather than written out, so publishing a
+  // converter cannot leave these counts describing an older site.
+  const hubs = indexablePages
+    .map(([path]) => path)
+    .filter((path) => /^\/(?:curl-to-[a-z]+|[a-z]+-to-curl)$/u.test(path));
+  const forwardHubs = hubs.filter((path) => path.startsWith("/curl-to-"));
+
   const groups = page.locator(".converter-group");
   const cards = page.locator(".converter-index-item");
   await expect(groups).toHaveCount(2);
-  await expect(cards).toHaveCount(18);
+  await expect(cards).toHaveCount(hubs.length);
 
   const [forwardBox, reverseBox] = await Promise.all([
     groups.first().boundingBox(),
@@ -322,7 +331,7 @@ test("keeps converter groups and cards visually separated", async ({
   expect(cardSurface.borderWidth).toBeGreaterThanOrEqual(1);
   expect(cardSurface.paddingTop).toBeGreaterThanOrEqual(18);
   await expect(groups.first().getByRole("heading", { level: 3 })).toHaveCount(
-    9,
+    forwardHubs.length,
   );
 });
 

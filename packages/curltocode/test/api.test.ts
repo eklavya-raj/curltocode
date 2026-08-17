@@ -73,6 +73,7 @@ describe("curltocode public API", () => {
       "ruby-faraday",
       "rust-reqwest",
       "rust-ureq",
+      "http-raw",
     ]);
   });
 
@@ -193,6 +194,11 @@ describe("curltocode public API", () => {
         language: "rust",
         client: "ureq",
         parserLanguage: "rust",
+      },
+      {
+        language: "http",
+        client: "raw",
+        parserLanguage: "http",
       },
     ]);
   });

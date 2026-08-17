@@ -49,6 +49,7 @@ describe("generator registry", () => {
       "ruby-faraday",
       "rust-reqwest",
       "rust-ureq",
+      "http-raw",
     ]);
     expect(new Set(keys).size).toBe(keys.length);
   });

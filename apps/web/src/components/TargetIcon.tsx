@@ -42,6 +42,7 @@ const languageIcons: Record<Language, IconDefinition> = {
   csharp: { type: "brand", icon: siDotnet },
   ruby: { type: "brand", icon: siRuby },
   rust: { type: "brand", icon: siRust },
+  http: { type: "monogram", text: "H1" },
 };
 
 const clientIcons: Record<Client, IconDefinition> = {
@@ -62,6 +63,7 @@ const clientIcons: Record<Client, IconDefinition> = {
   faraday: { type: "monogram", text: "Fr" },
   reqwest: { type: "monogram", text: "Rq" },
   ureq: { type: "monogram", text: "Ur" },
+  raw: { type: "monogram", text: "H1" },
 };
 
 /**
@@ -82,6 +84,7 @@ const sourceIcons: Record<SourceLanguage, IconDefinition> = {
   rust: { type: "brand", icon: siRust },
   typescript: { type: "brand", icon: siTypescript },
   python: { type: "brand", icon: siPython },
+  http: { type: "monogram", text: "H1" },
 };
 
 type TargetIconProps =

@@ -1,5 +1,10 @@
 import type { CurlToCodeOptions, ReverseLanguage } from "curltocode";
-import { convert, parseCode, requestToCurl } from "curltocode";
+import {
+  convert,
+  parseCode,
+  requestToCurl,
+  supportedReverseTargets,
+} from "curltocode";
 
 /**
  * Canonical example requests shown on every converter page.
@@ -94,8 +99,15 @@ export function renderExamples(
 export async function renderReverseExamples(
   options: CurlToCodeOptions,
 ): Promise<readonly RenderedExample[]> {
-  const parserLanguage: ReverseLanguage =
-    options.language === "python" ? "python" : "javascript";
+  // Taken from the reverse registry rather than mapped by hand: the registry
+  // is what actually knows which parser reads a target, and a hand-written
+  // mapping silently sends every unlisted language to the wrong parser.
+  const parserLanguage: ReverseLanguage | undefined =
+    supportedReverseTargets.find(
+      (target) =>
+        target.language === options.language &&
+        target.client === options.client,
+    )?.parserLanguage;
 
   return Promise.all(
     SCENARIOS.map(async (scenario) => {

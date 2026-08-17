@@ -11,7 +11,12 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { supportedTargets } from "curltocode";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+/** Derived so registering a language cannot leave this assertion behind. */
+const LANGUAGE_COUNT = new Set(supportedTargets.map(({ language }) => language))
+  .size;
 
 import Converter from "../src/components/Converter";
 
@@ -117,7 +122,7 @@ describe("Converter", () => {
     expect(
       pythonOption.querySelector('[data-icon="language-python"]'),
     ).toBeInTheDocument();
-    expect(screen.getAllByRole("option")).toHaveLength(9);
+    expect(screen.getAllByRole("option")).toHaveLength(LANGUAGE_COUNT);
     await user.keyboard("py{Enter}");
     expect(
       converter.querySelector('[data-icon="language-python"]'),
