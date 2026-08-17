@@ -3,7 +3,7 @@ import type { Page } from "@playwright/test";
 
 const productionBaseUrl = "http://127.0.0.1:4324";
 const indexablePages = [
-  ["/", "cURL ↔ Code Converter"],
+  ["/", "cURL Converter"],
   ["/converters", "cURL and code converters"],
   ["/about", "About CurlToCode"],
   ["/contact", "Contact"],
@@ -599,7 +599,7 @@ test("every indexable page renders canonical metadata and structured data", asyn
     descriptions.add(description);
     if (path === "/") {
       expect(title).toBe(
-        "cURL to Code Converter – Python & JavaScript | CurlToCode",
+        "cURL Converter – Convert cURL to Python & JavaScript | CurlToCode",
       );
       await expect(
         page.getByRole("heading", {
@@ -633,18 +633,31 @@ test("every indexable page renders canonical metadata and structured data", asyn
     expect(schema).not.toBeNull();
     const parsed = JSON.parse(schema ?? "") as {
       readonly "@graph": readonly {
-        readonly "@type": string;
+        readonly "@type": string | readonly string[];
         readonly itemListElement?: readonly {
           readonly name: string;
           readonly position: number;
         }[];
       }[];
     };
-    const pageTypes = parsed["@graph"].map((entry) => entry["@type"]);
+    // A node may declare several types, so the graph is flattened before
+    // membership is checked.
+    const pageTypes = parsed["@graph"].flatMap((entry) =>
+      typeof entry["@type"] === "string"
+        ? [entry["@type"]]
+        : [...entry["@type"]],
+    );
     expect(pageTypes).toContain("Organization");
     expect(pageTypes).toContain("WebSite");
     expect(pageTypes).toContain("WebPage");
-    expect(pageTypes).not.toContain("SoftwareApplication");
+    // The application entity belongs to the converter, not to each document
+    // that embeds it, so exactly one URL may claim it.
+    if (path === "/") {
+      expect(pageTypes).toContain("SoftwareApplication");
+      expect(pageTypes).toContain("WebApplication");
+    } else {
+      expect(pageTypes).not.toContain("SoftwareApplication");
+    }
     if (path !== "/") {
       const breadcrumb = parsed["@graph"].find(
         (entry) => entry["@type"] === "BreadcrumbList",

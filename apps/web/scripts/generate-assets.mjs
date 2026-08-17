@@ -177,8 +177,8 @@ mkdirSync(ogDir, { recursive: true });
 
 rasterize(
   ogSvg({
-    heading: "cURL ↔ Code Converter",
-    subtitle: "curl → python · go · java · rust · php",
+    heading: "cURL Converter",
+    subtitle: "curl ↔ python · go · java · rust · php",
   }),
   join(ogDir, "default.png"),
   1200,

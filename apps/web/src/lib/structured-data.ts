@@ -42,6 +42,13 @@ export interface StructuredDataInput {
    * is not.
    */
   readonly article?: ArticleInput | undefined;
+  /**
+   * Set on the one page whose primary purpose is the tool itself. Reference
+   * pages embed the same converter but are documents about a conversion, so
+   * declaring the application on all of them would describe them inaccurately
+   * and split the entity across 70 URLs.
+   */
+  readonly application?: boolean | undefined;
 }
 
 export interface ArticleInput {
@@ -54,6 +61,7 @@ export interface ArticleInput {
 
 const WEBSITE_ID = `${SITE_URL}/#website`;
 const ORGANIZATION_ID = `${SITE_URL}/#organization`;
+const APPLICATION_ID = `${SITE_URL}/#application`;
 
 function organization(): Record<string, unknown> {
   return {
@@ -82,6 +90,42 @@ function webSite(): Record<string, unknown> {
   };
 }
 
+/**
+ * The converter itself, as an entity distinct from the page describing it.
+ *
+ * Both types are declared: `WebApplication` is the accurate one, and the
+ * `SoftwareApplication` supertype is kept alongside it because that is the type
+ * consumers actually match on. `offers` states a real price of zero rather than
+ * leaving "free" implied by prose.
+ */
+function softwareApplication(): Record<string, unknown> {
+  return {
+    "@type": ["SoftwareApplication", "WebApplication"],
+    "@id": APPLICATION_ID,
+    name: SITE_NAME,
+    url: SITE_URL,
+    description: SITE_DESCRIPTION,
+    applicationCategory: "DeveloperApplication",
+    applicationSubCategory: "HTTP request converter",
+    operatingSystem: "Any",
+    browserRequirements: "Requires JavaScript",
+    isAccessibleForFree: true,
+    offers: {
+      "@type": "Offer",
+      price: "0",
+      priceCurrency: "USD",
+      availability: "https://schema.org/InStock",
+    },
+    featureList: [
+      "Convert cURL commands to Python, JavaScript, TypeScript, Go, Rust, Java, C#, PHP, and Ruby",
+      "Convert code back to cURL commands",
+      "Runs entirely in the browser without uploading requests",
+    ],
+    publisher: { "@id": ORGANIZATION_ID },
+    inLanguage: "en",
+  };
+}
+
 function webPage(input: StructuredDataInput): Record<string, unknown> {
   return {
     "@type": "WebPage",
@@ -91,6 +135,9 @@ function webPage(input: StructuredDataInput): Record<string, unknown> {
     description: input.description,
     isPartOf: { "@id": WEBSITE_ID },
     inLanguage: "en",
+    ...(input.application === true
+      ? { mainEntity: { "@id": APPLICATION_ID } }
+      : {}),
     ...(input.breadcrumbs === undefined || input.breadcrumbs.length === 0
       ? {}
       : { breadcrumb: { "@id": `${input.canonical}#breadcrumb` } }),
@@ -206,6 +253,7 @@ export function buildStructuredData(
     webSite(),
     webPage(input),
   ];
+  if (input.application === true) graph.push(softwareApplication());
   if (input.breadcrumbs !== undefined && input.breadcrumbs.length > 0)
     graph.push(breadcrumbList(input.canonical, input.breadcrumbs));
   if (input.faqs !== undefined && input.faqs.length > 0)

@@ -31,6 +31,8 @@ interface Props {
   itemList?: readonly ItemListEntry[];
   /** Present on reference pages, which are articles rather than navigation. */
   article?: ArticleInput;
+  /** Set only on the page whose subject is the converter application itself. */
+  application?: boolean;
 }
 
 const {
@@ -42,6 +44,7 @@ const {
   faqs,
   itemList,
   article,
+  application,
 } = Astro.props;
 
 // Footer navigation is derived from the collection so a new converter page is
@@ -102,6 +105,7 @@ const structuredData = buildStructuredData({
   faqs,
   itemList,
   article,
+  application,
 });
 ---
 

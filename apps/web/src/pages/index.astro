@@ -12,9 +12,10 @@ const hubs = converters
   .filter((entry) => entry.data.parent === undefined)
   .sort((a, b) => a.data.order - b.data.order);
 
-const title = "cURL to Code Converter – Python & JavaScript | CurlToCode";
+const title =
+  "cURL Converter – Convert cURL to Python & JavaScript | CurlToCode";
 const description =
-  "Convert cURL commands to Python, JavaScript, Go, Rust, Java, C#, PHP, and Ruby, or convert code back to cURL. Free and processed entirely in your browser.";
+  "Free online cURL converter. Convert cURL to Python, JavaScript, Go, Rust, Java, C#, PHP, and Ruby — or convert code back to cURL. Runs entirely in your browser.";
 
 const faqs: readonly FaqEntry[] = [
   {
@@ -35,16 +36,16 @@ const faqs: readonly FaqEntry[] = [
   {
     question: "Can it convert code back into a cURL command?",
     answer:
-      "Yes, for statically analysable JavaScript and TypeScript Fetch and Axios calls. The parser reads your code as a syntax tree rather than running it, so a value produced at runtime is reported as an unresolved expression instead of being guessed.",
+      "Yes. Every client the converter can generate can also be read back, covering JavaScript, TypeScript, Python, Go, Java, C#, PHP, Ruby, and Rust. The parser reads your code as a syntax tree rather than running it, so a value produced at runtime is reported as an unresolved expression instead of being guessed.",
   },
 ];
 ---
 
-<BaseLayout title={title} description={description} faqs={faqs}>
+<BaseLayout title={title} description={description} faqs={faqs} application>
   <div class="shell">
     <header class="hero">
       <span class="eyebrow">Private HTTP request conversion</span>
-      <h1>cURL ↔ Code Converter</h1>
+      <h1>cURL Converter</h1>
       <p class="lede">
         Convert cURL to Python, JavaScript, Go, Rust, Java, C#, PHP, and Ruby —
         or convert code back to cURL.
