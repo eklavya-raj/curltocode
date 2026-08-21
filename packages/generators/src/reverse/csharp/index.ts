@@ -7,11 +7,11 @@ import { CodeParseError } from "../types.js";
 import type { ReverseClient, ReverseParseResult } from "../types.js";
 
 /**
- * Recover an HTTP request from C# source using HttpClient or RestSharp.
+ * Recover an HTTP request from C# source using HttpClient, RestSharp, or Flurl.
  *
  * HttpClient mixes a constructor, property assignments, and method calls, while
- * RestSharp is a fluent chain. The shared chain reader supplies both, so this
- * module only maps names onto request fields.
+ * RestSharp and Flurl are fluent chains. The shared chain reader supplies all
+ * three, so this module only maps names onto request fields.
  */
 
 const CSHARP_TRAITS = {
@@ -37,9 +37,26 @@ const REST_SHARP_METHODS: ReadonlyMap<string, string> = new Map([
 ]);
 
 function detectClient(source: string): ReverseClient {
+  // Flurl is checked first: its chain also mentions HttpMethod, which the
+  // HttpClient reader would otherwise claim.
+  if (/\bFlurl\b|SendMultipartAsync|AllowAnyHttpStatus/u.test(source)) {
+    return "flurl";
+  }
   return /\bRestSharp\b|\bRestRequest\b|\bRestClient\b/u.test(source)
     ? "restsharp"
     : "httpclient";
+}
+
+/**
+ * The URL a Flurl chain starts from.
+ *
+ * Flurl's extension methods hang off a string, so the URL is the receiver of
+ * the chain rather than an argument to anything. The chain reader records
+ * calls, not receivers, so it is taken from the first absolute URL literal in
+ * the source — which is what that receiver is.
+ */
+function flurlUrl(source: string): string | undefined {
+  return /"(https?:\/\/[^"\\]*)"/u.exec(source)?.[1];
 }
 
 export function parseCsharpRequest(source: string): ReverseParseResult {
@@ -53,6 +70,16 @@ export function parseCsharpRequest(source: string): ReverseParseResult {
   ].some((pattern) => pattern.test(source));
 
   const isMultipart = /\bMultipartFormDataContent\b/u.test(source);
+  if (client === "flurl") {
+    const url = flurlUrl(source);
+    if (url !== undefined) {
+      builder.url = url;
+      builder.found = true;
+    }
+    // Flurl follows redirects unless its settings turn them off, which the
+    // generated chain always states outright.
+    builder.followRedirects = !/Redirects\.Enabled\s*=\s*false/u.test(source);
+  }
 
   const value = (call: SourceCall, index: number): StaticValue | undefined => {
     const argument = call.args[index];
@@ -151,6 +178,65 @@ export function parseCsharpRequest(source: string): ReverseParseResult {
           declared === undefined ? undefined : asString(declared);
         builder.bodyContentType =
           call.method === "AddJsonBody" ? "application/json" : declaredText;
+        break;
+      }
+      case "WithHeader": {
+        if (call.args.length < 2) break;
+        builder.headerFrom(value(call, 0), value(call, 1), call.path);
+        break;
+      }
+      case "WithBasicAuth": {
+        const user = value(call, 0);
+        const password = value(call, 1);
+        const username = user === undefined ? undefined : asString(user);
+        const secret = password === undefined ? undefined : asString(password);
+        if (username !== undefined && secret !== undefined) {
+          builder.auth = { kind: "basic", username, password: secret };
+        }
+        break;
+      }
+      case "WithOAuthBearerToken": {
+        const token = value(call, 0);
+        const text = token === undefined ? undefined : asString(token);
+        if (text !== undefined) {
+          builder.header("Authorization", `Bearer ${text}`);
+        }
+        break;
+      }
+      case "StringContent":
+      case "ByteArrayContent": {
+        // Flurl carries the payload and its media type in one content object,
+        // so the type is read here rather than from a header.
+        if (client !== "flurl") break;
+        const body = value(call, 0);
+        const text = body === undefined ? undefined : asString(body);
+        if (text !== undefined) builder.bodyText = text;
+        const declared = value(call, 2);
+        const declaredText =
+          declared === undefined ? undefined : asString(declared);
+        if (declaredText !== undefined) builder.bodyContentType = declaredText;
+        break;
+      }
+      case "AddString": {
+        if (call.args.length < 2) break;
+        const name = value(call, 0);
+        const partValue = value(call, 1);
+        const partName = name === undefined ? undefined : asString(name);
+        const text = partValue === undefined ? undefined : asString(partValue);
+        if (partName !== undefined && text !== undefined) {
+          builder.parts.push({ name: partName, value: text });
+        }
+        break;
+      }
+      case "SendAsync":
+      case "SendMultipartAsync": {
+        const method = value(call, 0);
+        const name =
+          method?.kind === "identifier"
+            ? (method.name.split(".").at(-1) ?? "")
+            : ((method === undefined ? undefined : asString(method)) ?? "");
+        if (name !== "") builder.method = name.toUpperCase();
+        builder.found = true;
         break;
       }
       case "AddParameter": {

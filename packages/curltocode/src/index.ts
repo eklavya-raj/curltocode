@@ -1,6 +1,15 @@
 import type { CurlParseResult, HttpRequest } from "@curltocode/core";
-import { parseCurl as parseCurlInternal } from "@curltocode/core";
+import {
+  parseCurl as parseCurlInternal,
+  splitCurlCommands,
+} from "@curltocode/core";
 import type {
+  InterchangeEntry,
+  InterchangeFormat,
+} from "@curltocode/generators/reverse";
+import type {
+  CurlOptions,
+  GeneratedCurl,
   GeneratedCode,
   GeneratorClient,
   GeneratorId,
@@ -83,8 +92,59 @@ export async function codeToCurl(input: string): Promise<string> {
   return requestToCurl((await parseCode(input)).request);
 }
 
-export function requestToCurl(request: HttpRequest): string {
-  return generateCurl(request).code;
+export function requestToCurl(
+  request: HttpRequest,
+  options: CurlOptions = {},
+): string {
+  return generateCurl(request, options).code;
+}
+
+/**
+ * Generate a cURL command together with any environment variables it expects.
+ *
+ * Use this rather than `requestToCurl` when secrets are lifted out, so the
+ * caller can show which variables have to be set before the command will run.
+ */
+export function requestToCurlDetailed(
+  request: HttpRequest,
+  options: CurlOptions = {},
+): GeneratedCurl {
+  return generateCurl(request, options);
+}
+
+/**
+ * Split a script into the cURL commands it contains.
+ *
+ * Exposed because a caller converting a scratch file or a browser's "copy all
+ * as cURL" export needs the same quoting-aware split the converter uses, and a
+ * naive split on newlines would break any command with a multi-line body.
+ */
+export { splitCurlCommands };
+
+/**
+ * List the requests inside a HAR archive, a Postman collection, or a JSON
+ * request document, without converting any of them.
+ *
+ * A HAR export routinely holds hundreds of entries, so a caller needs to see
+ * what is in the file before choosing. The parser is loaded lazily, the same
+ * way `parseCode` loads it, so the reverse code never lands in a bundle that
+ * does not use it.
+ */
+export async function listRequests(
+  input: string,
+): Promise<readonly InterchangeEntry[]> {
+  const { listInterchangeRequests } =
+    await import("@curltocode/generators/reverse");
+  return listInterchangeRequests(input);
+}
+
+/** The interchange format a document is, when it is one of the three. */
+export async function detectInterchangeFormat(
+  input: string,
+): Promise<InterchangeFormat | undefined> {
+  const { looksLikeInterchangeDocument } =
+    await import("@curltocode/generators/reverse");
+  return looksLikeInterchangeDocument(input);
 }
 
 export type {
@@ -112,9 +172,11 @@ export {
   REVERSE_CLIENT_LABELS,
 } from "@curltocode/generators";
 export type {
+  CurlOptions,
   DynamicIssue,
   DynamicIssueKind,
   GeneratedCode,
+  GeneratedCurl,
   GeneratorClient,
   GeneratorErrorCode,
   GeneratorLanguage,
@@ -126,4 +188,8 @@ export type {
   ReverseTargetLanguage,
   StaticRequestDetails,
 } from "@curltocode/generators";
+export type {
+  InterchangeEntry,
+  InterchangeFormat,
+} from "@curltocode/generators/reverse";
 export type { ConvertOptions as CurlToCodeOptions };

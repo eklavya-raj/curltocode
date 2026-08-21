@@ -460,7 +460,7 @@ describe("Converter", () => {
     // rather than quietly falling back to a parser that would succeed.
     await chooseTarget(user, "Language", "python");
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      /No supported Requests, HTTPX, or aiohttp call was found/u,
+      /No supported Requests, HTTPX, aiohttp, urllib3, or http.client call was found/u,
     );
   });
 
@@ -638,6 +638,132 @@ describe("Converter", () => {
     await user.click(screen.getByRole("button", { name: "Code → cURL" }));
     await waitFor(() => expect(valueOf("Converted output")).toContain("curl"));
     expect(network).not.toHaveBeenCalled();
+  });
+
+  it("offers a picker when the input holds several cURL commands", async () => {
+    const user = userEvent.setup();
+    render(<Converter />);
+    fireEvent.change(screen.getByLabelText("cURL command"), {
+      target: {
+        value:
+          "curl https://api.example.com/first\ncurl -X POST https://api.example.com/second",
+      },
+    });
+    const picker = await screen.findByLabelText("2 cURL commands found");
+    // The first command is what the output shows until another is chosen.
+    await waitFor(() =>
+      expect(valueOf("Converted output")).toContain("/first"),
+    );
+    await user.selectOptions(picker, "1");
+    await waitFor(() =>
+      expect(valueOf("Converted output")).toContain("/second"),
+    );
+    expect(valueOf("Converted output")).not.toContain("/first");
+  });
+
+  it("does not offer a picker for a single multi-line command", async () => {
+    render(<Converter />);
+    fireEvent.change(screen.getByLabelText("cURL command"), {
+      target: {
+        value:
+          "curl https://api.example.com/one \\\n  --data-raw 'curl is mentioned here'",
+      },
+    });
+    await waitFor(() => expect(valueOf("Converted output")).toContain("/one"));
+    expect(
+      screen.queryByRole("combobox", { name: /cURL commands found/u }),
+    ).toBeNull();
+  });
+
+  it("lists every request in a pasted HAR archive", async () => {
+    const user = userEvent.setup();
+    render(<Converter />);
+    await user.click(screen.getByRole("button", { name: "Code → cURL" }));
+    const har = JSON.stringify({
+      log: {
+        entries: [
+          {
+            request: {
+              method: "GET",
+              url: "https://api.example.com/first",
+              headers: [],
+              queryString: [],
+            },
+          },
+          {
+            request: {
+              method: "DELETE",
+              url: "https://api.example.com/second",
+              headers: [],
+              queryString: [],
+            },
+          },
+        ],
+      },
+    });
+    fireEvent.change(
+      screen.getByLabelText("Request code in any supported language"),
+      { target: { value: har } },
+    );
+    const picker = await screen.findByLabelText("2 requests in this document");
+    await waitFor(() =>
+      expect(valueOf("Converted output")).toContain("/first"),
+    );
+    await user.selectOptions(picker, "1");
+    await waitFor(() =>
+      expect(valueOf("Converted output")).toContain("/second"),
+    );
+  });
+
+  it("copies a share link that keeps the request in the URL fragment", async () => {
+    const user = userEvent.setup();
+    // user-event installs its own clipboard stub, so the spy has to go on the
+    // object it leaves behind rather than on the one set up beforehand.
+    const write = vi.spyOn(navigator.clipboard, "writeText");
+    render(<Converter />);
+    await user.click(screen.getByRole("button", { name: "Share" }));
+    await waitFor(() => expect(write).toHaveBeenCalled());
+    const link = write.mock.calls[0]?.[0] ?? "";
+    // Everything after the # stays in the browser; a query string would be sent.
+    expect(link).toContain("#s=");
+    expect(new URL(link).search).toBe("");
+    const payload = link.slice(link.indexOf("#s=") + 3);
+    const decoded = JSON.parse(
+      new TextDecoder().decode(
+        Uint8Array.from(
+          atob(payload.replaceAll("-", "+").replaceAll("_", "/")),
+          (character) => character.codePointAt(0) ?? 0,
+        ),
+      ),
+    ) as { i: string; l: string };
+    expect(decoded.i).toContain("api.example.com");
+    expect(decoded.l).toBe("javascript");
+  });
+
+  it("lifts secrets into shell variables when asked", async () => {
+    const user = userEvent.setup();
+    render(<Converter />);
+    await user.click(screen.getByRole("button", { name: "Code → cURL" }));
+    fireEvent.change(
+      screen.getByLabelText("Request code in any supported language"),
+      {
+        target: {
+          value: `fetch("https://api.example.com/v1/me", {
+  headers: { "X-Api-Key": "secret-key" },
+});`,
+        },
+      },
+    );
+    await waitFor(() =>
+      expect(valueOf("Converted output")).toContain("secret-key"),
+    );
+    await user.click(screen.getByRole("checkbox", { name: /Secrets as/u }));
+    await waitFor(() =>
+      expect(valueOf("Converted output")).toContain("$X_API_KEY"),
+    );
+    expect(valueOf("Converted output")).not.toContain("secret-key");
+    // The value has to be shown somewhere, or the command cannot be run.
+    expect(screen.getByText(/export X_API_KEY=/u)).toBeInTheDocument();
   });
 
   it("rejects oversized input before invoking conversion", async () => {

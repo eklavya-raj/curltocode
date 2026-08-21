@@ -330,7 +330,7 @@ requests.post(
 
   it("does not treat a non-request Python file as a request", () => {
     expect(() => parsePythonRequest(`import requests\nprint("hello")`)).toThrow(
-      /No supported Requests, HTTPX, or aiohttp call was found/u,
+      /No supported Requests, HTTPX, aiohttp, urllib3, or http.client call was found/u,
     );
   });
 });

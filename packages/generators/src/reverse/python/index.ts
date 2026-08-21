@@ -2,7 +2,6 @@ import { createHttpRequest } from "@curltocode/core";
 import type {
   FormField,
   Header,
-  JsonValue,
   MultipartPart,
   RequestBody,
 } from "@curltocode/core";
@@ -21,6 +20,16 @@ import {
   deepResolve,
   resolve,
 } from "./syntax.js";
+import { detectPythonStdlib, parsePythonStdlibRequest } from "./stdlib.js";
+import {
+  appendQuery,
+  asJson,
+  asString,
+  contentTypeOf,
+  filePathFrom,
+  pairs,
+  parseJsonText,
+} from "./values.js";
 import type { PythonArguments, PythonCall, PythonNode } from "./syntax.js";
 
 /**
@@ -137,122 +146,6 @@ function issueFor(
   };
 }
 
-function asString(node: PythonNode): string | undefined {
-  if (node.kind === "string") return node.value;
-  if (node.kind === "number") return String(node.value);
-  if (node.kind === "boolean") return node.value ? "True" : "False";
-  return undefined;
-}
-
-/** Convert a parsed literal to JSON, or `undefined` if anything is dynamic. */
-function asJson(node: PythonNode): JsonValue | undefined {
-  switch (node.kind) {
-    case "string":
-      return node.value;
-    case "number":
-      return node.value;
-    case "boolean":
-      return node.value;
-    case "none":
-      return null;
-    case "list":
-    case "tuple": {
-      const items: JsonValue[] = [];
-      for (const item of node.items) {
-        const value = asJson(item);
-        if (value === undefined) return undefined;
-        items.push(value);
-      }
-      return items;
-    }
-    case "dict": {
-      const object: Record<string, JsonValue> = {};
-      for (const entry of node.entries) {
-        const key = asString(entry.key);
-        const value = asJson(entry.value);
-        if (key === undefined || value === undefined) return undefined;
-        object[key] = value;
-      }
-      return object;
-    }
-    default:
-      return undefined;
-  }
-}
-
-function isJsonValue(value: unknown): value is JsonValue {
-  if (
-    value === null ||
-    typeof value === "string" ||
-    typeof value === "boolean"
-  ) {
-    return true;
-  }
-  if (typeof value === "number") return Number.isFinite(value);
-  if (Array.isArray(value)) return value.every(isJsonValue);
-  if (typeof value !== "object") return false;
-  return Object.values(value).every(isJsonValue);
-}
-
-function parseJsonText(text: string): JsonValue | undefined {
-  try {
-    const value: unknown = JSON.parse(text);
-    return isJsonValue(value) ? value : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/**
- * Read a name/value mapping. Python code writes these as a dict, but requests
- * also accepts a list of pairs, which preserves duplicate names.
- */
-function pairs(
-  node: PythonNode,
-): readonly { readonly name: string; readonly value: string }[] | undefined {
-  if (node.kind === "dict") {
-    const out: { name: string; value: string }[] = [];
-    for (const entry of node.entries) {
-      const name = asString(entry.key);
-      const value = asString(entry.value);
-      if (name === undefined || value === undefined) return undefined;
-      out.push({ name, value });
-    }
-    return out;
-  }
-  if (node.kind === "list" || node.kind === "tuple") {
-    const out: { name: string; value: string }[] = [];
-    for (const item of node.items) {
-      if (item.kind !== "tuple" && item.kind !== "list") return undefined;
-      const [first, second] = item.items;
-      if (first === undefined || second === undefined) return undefined;
-      const name = asString(first);
-      const value = asString(second);
-      if (name === undefined || value === undefined) return undefined;
-      out.push({ name, value });
-    }
-    return out;
-  }
-  return undefined;
-}
-
-function contentTypeOf(headers: readonly Header[]): string | undefined {
-  return headers.find((header) => header.name.toLowerCase() === "content-type")
-    ?.value;
-}
-
-function appendQuery(url: string, query: readonly FormField[]): string {
-  if (query.length === 0) return url;
-  const separator = url.includes("?") ? "&" : "?";
-  const encoded = query
-    .map(
-      (field) =>
-        `${encodeURIComponent(field.name)}=${encodeURIComponent(field.value)}`,
-    )
-    .join("&");
-  return `${url}${separator}${encoded}`;
-}
-
 interface BodyOutcome {
   readonly body?: RequestBody;
   readonly header?: Header;
@@ -336,30 +229,6 @@ function multipartFrom(node: PythonNode): readonly MultipartPart[] | undefined {
     return undefined;
   }
   return parts;
-}
-
-/**
- * Trace a value back to the file it opens.
- *
- * aiohttp examples commonly route the handle through an ExitStack, so
- * `files.enter_context(open("a.png", "rb"))` has to unwrap to the same path as
- * a bare `open(...)`.
- */
-function filePathFrom(
-  node: PythonNode,
-  bindings: ReadonlyMap<string, PythonNode>,
-): string | undefined {
-  const resolved = resolve(node, bindings);
-  if (resolved.kind !== "call") return undefined;
-  if (resolved.callee === "open" || resolved.callee.endsWith(".open")) {
-    const first = resolved.args.positional[0];
-    return first?.kind === "string" ? first.value : undefined;
-  }
-  if (resolved.callee.endsWith(".enter_context")) {
-    const inner = resolved.args.positional[0];
-    return inner === undefined ? undefined : filePathFrom(inner, bindings);
-  }
-  return undefined;
 }
 
 /**
@@ -591,10 +460,17 @@ function bodyFrom(
 
 export function parsePythonRequest(source: string): ReverseParseResult {
   const calls = collectCalls(source);
+  // The two stdlib-adjacent clients are checked first: their call shapes are
+  // distinct, and `connection.request(...)` would otherwise be indistinguishable
+  // from a Requests session call.
+  const stdlib = detectPythonStdlib(source, calls);
+  if (stdlib !== undefined) {
+    return parsePythonStdlibRequest(source, calls, stdlib);
+  }
   const detected = detect(source, calls);
   if (detected === undefined) {
     throw new CodeParseError(
-      "No supported Requests, HTTPX, or aiohttp call was found.",
+      "No supported Requests, HTTPX, aiohttp, urllib3, or http.client call was found.",
     );
   }
 

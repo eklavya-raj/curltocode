@@ -20,6 +20,7 @@ const CURL_LANGUAGE = "bash";
 const LANGUAGE_GRAMMARS: Record<GeneratorLanguage, string> = {
   javascript: "javascript",
   typescript: "typescript",
+  nodejs: "javascript",
   python: "python",
   go: "go",
   php: "php",
@@ -27,9 +28,39 @@ const LANGUAGE_GRAMMARS: Record<GeneratorLanguage, string> = {
   csharp: "csharp",
   ruby: "ruby",
   rust: "rust",
+  kotlin: "kotlin",
+  swift: "swift",
+  dart: "dart",
+  objectivec: "objective-c",
+  c: "c",
+  cpp: "cpp",
+  clojure: "clojure",
+  elixir: "elixir",
+  perl: "perl",
+  r: "r",
+  julia: "julia",
+  lua: "lua",
+  matlab: "matlab",
+  ocaml: "ocaml",
+  scala: "scala",
+  nim: "nim",
+  crystal: "crystal",
+  // Shiki ships no CFML grammar; cfhttp is tag markup, so HTML is the
+  // closest thing that highlights it correctly rather than not at all.
+  cfml: "html",
+  powershell: "powershell",
   // Shiki ships a grammar for request messages themselves, which highlights the
   // request line and header names rather than treating the block as plain text.
   http: "http",
+  // The formats below are not programming languages, so each borrows the
+  // grammar of the syntax it is actually written in.
+  httpie: "bash",
+  wget: "bash",
+  har: "json",
+  json: "json",
+  ansible: "yaml",
+  postman: "json",
+  k6: "javascript",
 };
 
 const GRAMMARS = [CURL_LANGUAGE, ...new Set(Object.values(LANGUAGE_GRAMMARS))];

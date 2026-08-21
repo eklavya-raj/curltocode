@@ -1,17 +1,20 @@
 import { RequestBuilder } from "../shared/assemble.js";
 import { readChain, resolveValue } from "../shared/chain.js";
 import type { SourceCall } from "../shared/chain.js";
-import { asPairs, asString } from "../shared/values.js";
+import { asBoolean, asPairs, asString } from "../shared/values.js";
 import type { StaticValue } from "../shared/values.js";
 import { CodeParseError } from "../types.js";
 import type { ReverseClient, ReverseParseResult } from "../types.js";
 
 /**
- * Recover an HTTP request from Ruby source using Net::HTTP or Faraday.
+ * Recover an HTTP request from Ruby source using Net::HTTP, Faraday, HTTParty,
+ * or rest-client.
  *
  * Net::HTTP names the verb in the request class, sets headers through method
  * calls and subscript assignment, and takes the body as a property. Faraday
- * passes everything to one call. Both are read through the shared chain reader.
+ * passes everything to one call. HTTParty and rest-client are keyword-argument
+ * APIs, so their options are read from the labels rather than from position.
+ * All four go through the shared chain reader.
  */
 
 const RUBY_TRAITS = {
@@ -32,7 +35,37 @@ const NET_HTTP_CLASSES: ReadonlyMap<string, string> = new Map([
   ["Options", "OPTIONS"],
 ]);
 
+/** HTTParty and rest-client both expose one module method per verb. */
+const RUBY_VERBS: ReadonlySet<string> = new Set([
+  "get",
+  "post",
+  "put",
+  "patch",
+  "delete",
+  "head",
+  "options",
+]);
+
+/**
+ * Ruby symbols such as `:patch`.
+ *
+ * The chain reader has no symbol literal, so one arrives as its own source
+ * text. Reading it here keeps the colon syntax out of every other language's
+ * value model.
+ */
+function asSymbol(value: StaticValue | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  if (value.kind === "string") return value.value;
+  if (value.kind === "identifier") return value.name;
+  return value.kind === "unresolved" &&
+    /^:[A-Za-z_][A-Za-z0-9_]*$/u.test(value.source)
+    ? value.source.slice(1)
+    : undefined;
+}
+
 function detectClient(source: string): ReverseClient {
+  if (/\bRestClient\b/u.test(source)) return "restclient";
+  if (/\bHTTParty\b/u.test(source)) return "httparty";
   // `run_request` is Faraday's own API, and the require line is lower case,
   // so neither alone should be missed.
   return /faraday/iu.test(source) || /\brun_request\s*\(/u.test(source)
@@ -40,14 +73,69 @@ function detectClient(source: string): ReverseClient {
     : "nethttp";
 }
 
+/** Read a `{ "Name" => "value" }` argument into the builder. */
+function applyHeaders(
+  builder: RequestBuilder,
+  value: StaticValue | undefined,
+  origin: string,
+): void {
+  if (value === undefined) return;
+  const entries = asPairs(value);
+  if (entries === undefined) {
+    builder.issue(
+      "headers",
+      "Dynamic headers cannot be resolved statically.",
+      origin,
+    );
+    return;
+  }
+  for (const entry of entries) builder.header(entry.name, entry.value);
+}
+
+/** Read a payload argument, reporting one that is not a static string. */
+function applyBody(
+  builder: RequestBuilder,
+  value: StaticValue | undefined,
+  origin: string,
+): void {
+  if (value === undefined) return;
+  const text = asString(value);
+  if (text !== undefined) {
+    builder.bodyText = text;
+    return;
+  }
+  const entries = asPairs(value);
+  if (entries !== undefined) {
+    // A hash payload is form-encoded by both clients unless multipart is asked
+    // for, which is what the forward generators emit as well.
+    builder.bodyText = entries
+      .map(
+        ({ name, value: entry }) =>
+          `${encodeURIComponent(name)}=${encodeURIComponent(entry)}`,
+      )
+      .join("&");
+    builder.bodyContentType = "application/x-www-form-urlencoded";
+    return;
+  }
+  builder.issue(
+    "body",
+    "Dynamic request body cannot be resolved statically.",
+    origin,
+  );
+}
+
 export function parseRubyRequest(source: string): ReverseParseResult {
   const { calls, assignments, bindings } = readChain(source, RUBY_TRAITS);
   const client = detectClient(source);
   const builder = new RequestBuilder(client);
   // Net::HTTP never follows redirects on its own, and Faraday only does so
-  // when the follow_redirects middleware is installed. The flag is therefore
-  // off unless the source opts in.
-  builder.followRedirects = /follow_redirects/u.test(source);
+  // when the follow_redirects middleware is installed, so for those two the
+  // flag is off unless the source opts in. HTTParty and rest-client both
+  // follow by default and are corrected below from their own option.
+  builder.followRedirects =
+    client === "httparty" ||
+    client === "restclient" ||
+    /follow_redirects/u.test(source);
 
   const value = (call: SourceCall, index: number): StaticValue | undefined => {
     const argument = call.args[index];
@@ -80,6 +168,119 @@ export function parseRubyRequest(source: string): ReverseParseResult {
         const text = argument === undefined ? undefined : asString(argument);
         if (text !== undefined) builder.url = text;
         else if (uri !== undefined) builder.url = uri;
+      }
+      continue;
+    }
+
+    // HTTParty exposes one module method per verb and takes every option as a
+    // keyword argument.
+    if (
+      client === "httparty" &&
+      /(?:^|\.)HTTParty\.[a-z]+$/u.test(call.path) &&
+      RUBY_VERBS.has(call.method)
+    ) {
+      builder.found = true;
+      builder.method = call.method.toUpperCase();
+      const url = value(call, 0);
+      const urlText = url === undefined ? undefined : asString(url);
+      if (urlText !== undefined) builder.url = urlText;
+      const keyword = (name: string): StaticValue | undefined => {
+        const raw = call.keywords.get(name);
+        return raw === undefined ? undefined : resolveValue(raw, bindings);
+      };
+      applyHeaders(builder, keyword("headers"), call.path);
+      const multipart = asBoolean(keyword("multipart") ?? { kind: "null" });
+      const body = keyword("body");
+      if (multipart === true && body !== undefined) {
+        const entries = asPairs(body);
+        if (entries === undefined) {
+          builder.issue(
+            "body",
+            "Dynamic multipart body cannot be resolved statically.",
+            call.path,
+          );
+        } else {
+          for (const entry of entries) builder.parts.push(entry);
+        }
+      } else {
+        applyBody(builder, body, call.path);
+      }
+      const credentials = keyword("basic_auth");
+      const pairs =
+        credentials === undefined ? undefined : asPairs(credentials);
+      const username = pairs?.find((pair) => pair.name === "username")?.value;
+      const password = pairs?.find((pair) => pair.name === "password")?.value;
+      if (username !== undefined && password !== undefined) {
+        builder.auth = { kind: "basic", username, password };
+      }
+      const query = keyword("query");
+      const queryPairs = query === undefined ? undefined : asPairs(query);
+      if (queryPairs !== undefined && builder.url !== undefined) {
+        const separator = builder.url.includes("?") ? "&" : "?";
+        builder.url += `${separator}${queryPairs
+          .map(
+            ({ name, value: entry }) =>
+              `${encodeURIComponent(name)}=${encodeURIComponent(entry)}`,
+          )
+          .join("&")}`;
+      }
+      const follow = keyword("follow_redirects");
+      const followValue = follow === undefined ? undefined : asBoolean(follow);
+      if (followValue !== undefined) builder.followRedirects = followValue;
+      continue;
+    }
+
+    // rest-client puts every option in one keyword hash, whether it is written
+    // as `Request.execute(...)` or as one of the per-verb shortcuts.
+    if (
+      client === "restclient" &&
+      call.path === "RestClient::Request.execute"
+    ) {
+      builder.found = true;
+      const keyword = (name: string): StaticValue | undefined => {
+        const raw = call.keywords.get(name);
+        return raw === undefined ? undefined : resolveValue(raw, bindings);
+      };
+      const method = asSymbol(keyword("method"));
+      if (method !== undefined) builder.method = method.toUpperCase();
+      const url = keyword("url");
+      const urlText = url === undefined ? undefined : asString(url);
+      if (urlText !== undefined) builder.url = urlText;
+      applyHeaders(builder, keyword("headers"), call.path);
+      applyBody(builder, keyword("payload"), call.path);
+      const user = keyword("user");
+      const password = keyword("password");
+      const username = user === undefined ? undefined : asString(user);
+      const secret = password === undefined ? undefined : asString(password);
+      if (username !== undefined && secret !== undefined) {
+        builder.auth = { kind: "basic", username, password: secret };
+      }
+      const limit = keyword("max_redirects");
+      if (limit !== undefined) {
+        builder.followRedirects =
+          limit.kind === "number" ? limit.value > 0 : builder.followRedirects;
+      }
+      continue;
+    }
+
+    if (
+      client === "restclient" &&
+      /(?:^|\.)RestClient\.[a-z]+$/u.test(call.path) &&
+      RUBY_VERBS.has(call.method)
+    ) {
+      // `RestClient.post(url, payload, headers)`; GET and DELETE take the
+      // header hash as their second argument instead.
+      builder.found = true;
+      builder.method = call.method.toUpperCase();
+      const url = value(call, 0);
+      const urlText = url === undefined ? undefined : asString(url);
+      if (urlText !== undefined) builder.url = urlText;
+      const takesPayload = ["post", "put", "patch"].includes(call.method);
+      if (takesPayload) {
+        applyBody(builder, value(call, 1), call.path);
+        applyHeaders(builder, value(call, 2), call.path);
+      } else {
+        applyHeaders(builder, value(call, 1), call.path);
       }
       continue;
     }
@@ -175,7 +376,7 @@ export function parseRubyRequest(source: string): ReverseParseResult {
 
   if (!builder.found) {
     throw new CodeParseError(
-      "No supported Ruby request was found. Reverse conversion reads Net::HTTP request classes and Faraday.",
+      "No supported Ruby request was found. Reverse conversion reads Net::HTTP request classes, Faraday, HTTParty, and rest-client.",
     );
   }
   if (builder.url === undefined && uri !== undefined) builder.url = uri;

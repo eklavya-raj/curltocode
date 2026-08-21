@@ -6,6 +6,7 @@ export {
   DynamicExpressionError,
   REVERSE_CLIENT_LABELS,
   reverseTargets,
+  targetsThatAlwaysFollowRedirects,
   targetsWithoutRedirectPolicy,
 } from "./reverse/types.js";
 export type {

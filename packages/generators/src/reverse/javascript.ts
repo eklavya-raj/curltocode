@@ -27,8 +27,14 @@ import {
 } from "./static.js";
 import type { StaticBindings } from "./static.js";
 import { normalizeHeaders } from "./normalize.js";
+import { classifyStringBody } from "./shared/body.js";
+import { parseMultipartBody } from "./http/index.js";
 import { CodeParseError, DynamicExpressionError } from "./types.js";
-import type { DynamicIssue, ReverseParseResult } from "./types.js";
+import type {
+  DynamicIssue,
+  ReverseClient,
+  ReverseParseResult,
+} from "./types.js";
 
 function headerEntries(
   expression: t.Expression | undefined,
@@ -152,6 +158,34 @@ function bodyFromExpression(
       value: value.value,
       raw: JSON.stringify(value.value, undefined, indentation),
     };
+  }
+  const buffered = bufferFromString(node, bindings);
+  if (buffered !== undefined) {
+    return { kind: "binary", source: { kind: "inline", value: buffered } };
+  }
+  // `new Blob([...])` wraps a payload for a browser API; the bytes inside it
+  // are the request, so the single-part form is unwrapped.
+  if (
+    t.isNewExpression(node) &&
+    t.isIdentifier(node.callee, { name: "Blob" }) &&
+    node.arguments.length >= 1
+  ) {
+    const argument = expressionArgument(node.arguments[0]);
+    const parts =
+      argument === undefined
+        ? undefined
+        : resolveExpression(argument, bindings);
+    if (
+      parts !== undefined &&
+      t.isArrayExpression(parts) &&
+      parts.elements.length === 1
+    ) {
+      const only = parts.elements[0];
+      return only !== null && only !== undefined && t.isExpression(only)
+        ? bodyFromExpression(only, bindings)
+        : "dynamic";
+    }
+    return "dynamic";
   }
   if (
     t.isNewExpression(node) &&
@@ -351,20 +385,9 @@ function refineBodyForHeaders(
     return { kind: "text", value: body.raw };
   }
   if (body.kind !== "text") return body;
-  if (type?.includes("application/x-www-form-urlencoded") === true) {
-    return formBody(body.value);
-  }
-  if (type?.includes("json") === true) {
-    try {
-      const value: unknown = JSON.parse(body.value);
-      if (isJsonValue(value)) {
-        return { kind: "json", value, raw: body.value };
-      }
-    } catch {
-      return body;
-    }
-  }
-  return body;
+  // With a declared type the shared classifier decides, so JavaScript reads an
+  // opaque media type as bytes the same way every other reverse parser does.
+  return type === undefined ? body : classifyStringBody(body.value, type);
 }
 
 function addStaticParams(
@@ -471,19 +494,122 @@ function requestConstructorInit(
   return { url, init: expressionArgument(node.arguments[1]) };
 }
 
-function fetchRequest(
+/**
+ * A client whose request is one URL argument plus one options object.
+ *
+ * `fetch`, Ky, and Got all take that shape, and Ky is fetch underneath, so the
+ * three differ only in which option names they read and in how each spells its
+ * redirect policy. Those differences are data here rather than three near
+ * copies of the same reader.
+ */
+interface OptionsClientDialect {
+  readonly client: ReverseClient;
+  /** Used when reporting an option this reader does not understand. */
+  readonly label: string;
+  /** Options that describe the request itself. */
+  readonly options: readonly string[];
+  /**
+   * Options that change how the client behaves around the exchange without
+   * changing the bytes it puts on the wire, so they are accepted and ignored
+   * rather than reported as unrepresentable.
+   */
+  readonly ignored: readonly string[];
+  /** Either the Fetch string enum, or a boolean option named here. */
+  readonly redirect:
+    | { readonly kind: "fetch" }
+    | { readonly kind: "boolean"; readonly option: string };
+  /** Whether a `new Request(...)` first argument is accepted. */
+  readonly requestObject: boolean;
+  /**
+   * Whether a string body gains `text/plain;charset=UTF-8`. The Fetch standard
+   * says it does, and Ky inherits that by calling fetch. Got writes to a Node
+   * socket and adds nothing.
+   */
+  readonly implicitTextContentType: boolean;
+}
+
+const FETCH_DIALECT: OptionsClientDialect = {
+  client: "fetch",
+  label: "fetch",
+  options: ["method", "headers", "body"],
+  ignored: [],
+  redirect: { kind: "fetch" },
+  requestObject: true,
+  implicitTextContentType: true,
+};
+
+const KY_DIALECT: OptionsClientDialect = {
+  client: "ky",
+  label: "Ky",
+  options: ["method", "headers", "body", "json", "searchParams"],
+  // `retry` and `throwHttpErrors` decide what happens after a response
+  // arrives, not what is sent.
+  ignored: ["retry", "throwHttpErrors", "timeout"],
+  redirect: { kind: "fetch" },
+  requestObject: false,
+  implicitTextContentType: true,
+};
+
+const GOT_DIALECT: OptionsClientDialect = {
+  client: "got",
+  label: "Got",
+  options: ["method", "headers", "body", "json", "form", "searchParams"],
+  ignored: ["retry", "throwHttpErrors", "timeout", "responseType"],
+  redirect: { kind: "boolean", option: "followRedirect" },
+  requestObject: false,
+  implicitTextContentType: false,
+};
+
+/** Append a `searchParams` option, which may be a string or a plain object. */
+function urlWithSearchParams(
+  url: string,
+  expression: t.Expression,
+  bindings: StaticBindings,
+): string | undefined {
+  const literal = staticString(expression, bindings);
+  if (literal !== undefined) {
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return undefined;
+    }
+    for (const [name, value] of new URLSearchParams(literal)) {
+      parsed.searchParams.append(name, value);
+    }
+    return parsed.toString();
+  }
+  return addStaticParams(url, expression, bindings);
+}
+
+/** Serialize name/value pairs the way the existing URLSearchParams reader does. */
+function encodeFields(fields: readonly { name: string; value: string }[]) {
+  return fields
+    .map(
+      ({ name, value }) =>
+        `${encodeURIComponent(name)}=${encodeURIComponent(value)}`,
+    )
+    .join("&");
+}
+
+function optionsClientRequest(
   source: string,
   program: t.Program,
   call: t.CallExpression,
   bindings: StaticBindings,
+  dialect: OptionsClientDialect,
+  /** Method named by a per-verb shortcut such as `got.post(...)`. */
+  shortcutMethod: string | undefined,
 ): ReverseParseResult {
   const issues: DynamicIssue[] = [];
   const firstArgument = expressionArgument(call.arguments[0]);
   // `fetch` accepts a URL, a `new URL(...)`, or a `new Request(...)`, and a
   // Request carries its own init that the second argument then overrides.
-  const requestInit = requestConstructorInit(firstArgument, bindings);
+  const requestInit = dialect.requestObject
+    ? requestConstructorInit(firstArgument, bindings)
+    : undefined;
   const urlExpression = requestInit?.url ?? firstArgument;
-  const url = staticUrlLike(urlExpression, bindings);
+  let url = staticUrlLike(urlExpression, bindings);
   if (url === undefined)
     issues.push(
       issue(
@@ -502,7 +628,7 @@ function fetchRequest(
       issues.push(
         issue(
           "config",
-          "Dynamic fetch options cannot be resolved statically.",
+          `Dynamic ${dialect.label} options cannot be resolved statically.`,
           source,
           initExpression,
         ),
@@ -513,7 +639,7 @@ function fetchRequest(
         issues.push(
           issue(
             "config",
-            "Computed or spread fetch options cannot be resolved statically.",
+            `Computed or spread ${dialect.label} options cannot be resolved statically.`,
             source,
             initExpression,
           ),
@@ -521,12 +647,15 @@ function fetchRequest(
       }
     }
   }
+  const redirectOption =
+    dialect.redirect.kind === "fetch" ? "redirect" : dialect.redirect.option;
+  const known = [...dialect.options, ...dialect.ignored, redirectOption];
   for (const [name, expression] of properties) {
-    if (!["method", "headers", "body", "redirect"].includes(name)) {
+    if (!known.includes(name)) {
       issues.push(
         issue(
           "config",
-          `Unsupported fetch option cannot be represented safely: ${name}.`,
+          `Unsupported ${dialect.label} option cannot be represented safely: ${name}.`,
           source,
           expression,
         ),
@@ -536,7 +665,7 @@ function fetchRequest(
   const methodExpression = properties.get("method");
   const method =
     methodExpression === undefined
-      ? "GET"
+      ? (shortcutMethod ?? "GET")
       : staticString(methodExpression, bindings);
   if (method === undefined)
     issues.push(
@@ -558,44 +687,155 @@ function fetchRequest(
         headersExpression,
       ),
     );
+
   const bodyExpression = properties.get("body");
-  const bodyCandidate = bodyFromExpression(bodyExpression, bindings);
-  const parsedBody =
-    bodyCandidate === "dynamic"
-      ? (staticFormDataBody(program, call, bodyExpression, bindings) ??
-        "dynamic")
-      : bodyCandidate;
-  const body = refineBodyForHeaders(parsedBody, headers ?? []);
+  const jsonExpression = properties.get("json");
+  const formExpression = properties.get("form");
+  const supplied = [bodyExpression, jsonExpression, formExpression].filter(
+    (expression) => expression !== undefined,
+  );
+  // A client that serializes for you still sets the content type for you, so
+  // the implied header is recorded alongside the body rather than guessed at
+  // afterwards.
+  let impliedContentType: string | undefined;
+  let parsedBody: RequestBody | undefined | "dynamic";
+  if (supplied.length > 1) {
+    issues.push(
+      issue(
+        "body",
+        `${dialect.label} was given more than one body option, so which payload is sent is ambiguous.`,
+        source,
+        supplied[0],
+      ),
+    );
+  } else if (jsonExpression !== undefined) {
+    const value = evaluateStatic(jsonExpression, bindings);
+    if (!value.ok || !isJsonValue(value.value)) {
+      parsedBody = "dynamic";
+    } else {
+      parsedBody = {
+        kind: "json",
+        value: value.value,
+        raw: JSON.stringify(value.value),
+      };
+      impliedContentType = "application/json";
+    }
+  } else if (formExpression !== undefined) {
+    const value = evaluateStatic(formExpression, bindings);
+    if (
+      !value.ok ||
+      value.value === null ||
+      typeof value.value !== "object" ||
+      Array.isArray(value.value)
+    ) {
+      parsedBody = "dynamic";
+    } else {
+      const fields = Object.entries(value.value).map(([name, entry]) => ({
+        name,
+        value: String(entry),
+      }));
+      parsedBody = {
+        kind: "form-urlencoded",
+        fields,
+        raw: encodeFields(fields),
+      };
+      impliedContentType = "application/x-www-form-urlencoded";
+    }
+  } else {
+    const candidate = bodyFromExpression(bodyExpression, bindings);
+    parsedBody =
+      candidate === "dynamic"
+        ? (staticFormDataBody(program, call, bodyExpression, bindings) ??
+          "dynamic")
+        : candidate;
+  }
+  const declaredHeaders = [...(headers ?? [])];
+  if (
+    impliedContentType !== undefined &&
+    contentType(declaredHeaders) === undefined
+  ) {
+    declaredHeaders.push({
+      name: "Content-Type",
+      value: impliedContentType,
+    });
+  }
+  const body = refineBodyForHeaders(parsedBody, declaredHeaders);
   if (body === "dynamic")
     issues.push(
       issue(
         "body",
         "Dynamic body cannot be resolved statically.",
         source,
-        bodyExpression,
+        bodyExpression ?? jsonExpression ?? formExpression,
       ),
     );
-  const redirectExpression = properties.get("redirect");
-  const redirect = staticString(redirectExpression, bindings);
-  if (
-    redirectExpression !== undefined &&
-    redirect !== "manual" &&
-    redirect !== "follow"
-  ) {
-    issues.push(
-      issue(
-        "config",
-        "Fetch redirect must be the static value 'follow' or 'manual'.",
-        source,
-        redirectExpression,
-      ),
-    );
+
+  const searchExpression = properties.get("searchParams");
+  if (searchExpression !== undefined && url !== undefined) {
+    const expanded = urlWithSearchParams(url, searchExpression, bindings);
+    if (expanded === undefined) {
+      issues.push(
+        issue(
+          "url",
+          `Dynamic ${dialect.label} searchParams cannot be resolved statically.`,
+          source,
+          searchExpression,
+        ),
+      );
+    } else {
+      url = expanded;
+    }
   }
+
+  let followRedirects = true;
+  // Whether the source states a policy at all, so a partial result reports
+  // only what was actually written rather than the client's default.
+  let redirectStated = false;
+  if (dialect.redirect.kind === "fetch") {
+    const redirectExpression = properties.get("redirect");
+    redirectStated = redirectExpression !== undefined;
+    const redirect = staticString(redirectExpression, bindings);
+    if (
+      redirectExpression !== undefined &&
+      redirect !== "manual" &&
+      redirect !== "follow"
+    ) {
+      issues.push(
+        issue(
+          "config",
+          `${dialect.label} redirect must be the static value 'follow' or 'manual'.`,
+          source,
+          redirectExpression,
+        ),
+      );
+    }
+    followRedirects = redirect !== "manual";
+  } else {
+    const option = dialect.redirect.option;
+    const redirectExpression = properties.get(option);
+    redirectStated = redirectExpression !== undefined;
+    if (redirectExpression !== undefined) {
+      const value = evaluateStatic(redirectExpression, bindings);
+      if (!value.ok || typeof value.value !== "boolean") {
+        issues.push(
+          issue(
+            "config",
+            `${dialect.label} ${option} must be a static boolean.`,
+            source,
+            redirectExpression,
+          ),
+        );
+      } else {
+        followRedirects = value.value;
+      }
+    }
+  }
+
   if (issues.length > 0) {
     const partialHeaders =
-      headers === undefined ? undefined : normalizeHeaders(headers);
+      headers === undefined ? undefined : normalizeHeaders(declaredHeaders);
     throw new DynamicExpressionError(issues, {
-      client: "fetch",
+      client: dialect.client,
       ...(method === undefined ? {} : { method }),
       ...(url === undefined ? {} : { url }),
       ...(partialHeaders === undefined
@@ -608,13 +848,12 @@ function fetchRequest(
               : { auth: partialHeaders.auth }),
           }),
       ...(body === undefined || body === "dynamic" ? {} : { body }),
-      ...(redirect === undefined
-        ? {}
-        : { followRedirects: redirect !== "manual" }),
+      ...(redirectStated ? { followRedirects } : {}),
     });
   }
-  const effectiveHeaders = [...(headers ?? [])];
+  const effectiveHeaders = [...declaredHeaders];
   if (
+    dialect.implicitTextContentType &&
     body !== undefined &&
     body !== "dynamic" &&
     body.kind === "text" &&
@@ -627,14 +866,14 @@ function fetchRequest(
   }
   const normalized = normalizeHeaders(effectiveHeaders);
   return {
-    client: "fetch",
+    client: dialect.client,
     request: createHttpRequest(url ?? "", {
       method: method ?? "GET",
       headers: normalized.headers,
       cookies: normalized.cookies,
       ...(normalized.auth === undefined ? {} : { auth: normalized.auth }),
       ...(body === undefined || body === "dynamic" ? {} : { body }),
-      followRedirects: redirect !== "manual",
+      followRedirects,
     }),
   };
 }
@@ -1305,6 +1544,1103 @@ function axiosRequest(
   };
 }
 
+/**
+ * Names a module's default export is bound to, including the CommonJS form.
+ *
+ * The single-client Node packages are imported under whatever name the file
+ * chooses, so the reader follows the binding rather than insisting on the
+ * package name.
+ */
+function defaultImportNames(
+  program: t.Program,
+  module: string,
+  fallback: string,
+): ReadonlySet<string> {
+  const names = new Set([fallback]);
+  for (const statement of program.body) {
+    if (t.isImportDeclaration(statement) && statement.source.value === module) {
+      for (const specifier of statement.specifiers) {
+        if (
+          t.isImportDefaultSpecifier(specifier) ||
+          t.isImportNamespaceSpecifier(specifier)
+        ) {
+          names.add(specifier.local.name);
+        }
+      }
+    }
+  }
+  walk(program, (node) => {
+    if (
+      !t.isVariableDeclarator(node) ||
+      !t.isIdentifier(node.id) ||
+      !t.isCallExpression(node.init) ||
+      !t.isIdentifier(node.init.callee, { name: "require" })
+    ) {
+      return;
+    }
+    const argument = node.init.arguments[0];
+    if (t.isStringLiteral(argument) && argument.value === module) {
+      names.add(node.id.name);
+    }
+  });
+  return names;
+}
+
+/** One `.name(args)` step of a fluent chain, outermost first. */
+interface ChainLink {
+  readonly name: string;
+  readonly call: t.CallExpression;
+}
+
+/**
+ * Split a fluent chain into the call that starts it and the steps applied to
+ * it. SuperAgent is the only JavaScript target built this way, so the walk is
+ * kept here rather than in the shared C-family chain reader.
+ */
+function flattenChain(call: t.CallExpression): {
+  readonly base: t.CallExpression;
+  readonly links: readonly ChainLink[];
+} {
+  const links: ChainLink[] = [];
+  let current: t.CallExpression = call;
+  for (;;) {
+    const callee = current.callee;
+    if (
+      !t.isMemberExpression(callee) ||
+      callee.computed ||
+      !t.isIdentifier(callee.property) ||
+      !t.isCallExpression(callee.object)
+    ) {
+      return { base: current, links: links.reverse() };
+    }
+    links.push({ name: callee.property.name, call: current });
+    current = callee.object;
+  }
+}
+
+/** SuperAgent's per-verb helpers. `del` exists because `delete` is reserved. */
+const SUPERAGENT_METHODS: Readonly<Record<string, string>> = {
+  get: "GET",
+  head: "HEAD",
+  post: "POST",
+  put: "PUT",
+  patch: "PATCH",
+  del: "DELETE",
+  delete: "DELETE",
+  options: "OPTIONS",
+};
+
+/**
+ * Steps that decide what happens around the exchange rather than what is sent.
+ * `.ok()` is in this list because the generated code uses it to stop SuperAgent
+ * throwing on a non-2xx, which changes nothing about the request.
+ */
+const SUPERAGENT_IGNORED: readonly string[] = [
+  "ok",
+  "timeout",
+  "retry",
+  "buffer",
+  "parse",
+  "responseType",
+  "then",
+];
+
+function superagentRequest(
+  source: string,
+  call: t.CallExpression,
+  bindings: StaticBindings,
+): ReverseParseResult {
+  const issues: DynamicIssue[] = [];
+  const { base, links } = flattenChain(call);
+  let method: string | undefined;
+  let url: string | undefined;
+  if (t.isIdentifier(base.callee)) {
+    // `superagent("PATCH", url)` — the method is data, so any verb works.
+    method = staticString(expressionArgument(base.arguments[0]), bindings);
+    url = staticUrlLike(expressionArgument(base.arguments[1]), bindings);
+    if (method === undefined || url === undefined) {
+      issues.push(
+        issue(
+          "url",
+          "SuperAgent needs a static method and URL to be read back.",
+          source,
+          base,
+        ),
+      );
+    }
+  } else if (
+    t.isMemberExpression(base.callee) &&
+    t.isIdentifier(base.callee.property)
+  ) {
+    method = SUPERAGENT_METHODS[base.callee.property.name];
+    url = staticUrlLike(expressionArgument(base.arguments[0]), bindings);
+    if (url === undefined) {
+      issues.push(
+        issue(
+          "url",
+          "Dynamic URL cannot be resolved statically.",
+          source,
+          base,
+        ),
+      );
+    }
+  }
+
+  const headers: Header[] = [];
+  const parts: Array<
+    | { kind: "field"; name: string; value: string }
+    | {
+        kind: "file";
+        name: string;
+        path: string;
+        filename?: string;
+        contentType?: string;
+      }
+  > = [];
+  let auth: RequestAuth | undefined;
+  let body: RequestBody | undefined | "dynamic";
+  let followRedirects = true;
+
+  for (const link of links) {
+    if (SUPERAGENT_IGNORED.includes(link.name)) continue;
+    const args = link.call.arguments;
+    if (link.name === "set") {
+      if (args.length === 1) {
+        const entries = headerEntries(expressionArgument(args[0]), bindings);
+        if (entries === undefined) {
+          issues.push(
+            issue(
+              "headers",
+              "Dynamic headers cannot be resolved statically.",
+              source,
+              link.call,
+            ),
+          );
+        } else {
+          headers.push(...entries);
+        }
+        continue;
+      }
+      const name = staticString(expressionArgument(args[0]), bindings);
+      const value = staticString(expressionArgument(args[1]), bindings);
+      if (name === undefined || value === undefined) {
+        issues.push(
+          issue(
+            "headers",
+            "Dynamic headers cannot be resolved statically.",
+            source,
+            link.call,
+          ),
+        );
+      } else {
+        headers.push({ name, value });
+      }
+      continue;
+    }
+    if (link.name === "type") {
+      const value = staticString(expressionArgument(args[0]), bindings);
+      if (value === undefined) {
+        issues.push(
+          issue(
+            "headers",
+            "Dynamic content type cannot be resolved statically.",
+            source,
+            link.call,
+          ),
+        );
+      } else {
+        headers.push({ name: "Content-Type", value });
+      }
+      continue;
+    }
+    if (link.name === "auth") {
+      const username = staticString(expressionArgument(args[0]), bindings);
+      const password = staticString(expressionArgument(args[1]), bindings);
+      if (username === undefined || password === undefined) {
+        issues.push(
+          issue(
+            "config",
+            "Dynamic credentials cannot be resolved statically.",
+            source,
+            link.call,
+          ),
+        );
+      } else {
+        auth = { kind: "basic", username, password };
+      }
+      continue;
+    }
+    if (link.name === "redirects") {
+      const value = evaluateStatic(
+        expressionArgument(args[0]) ?? t.numericLiteral(0),
+        bindings,
+      );
+      if (!value.ok || typeof value.value !== "number") {
+        issues.push(
+          issue(
+            "config",
+            "SuperAgent redirects must be a static number.",
+            source,
+            link.call,
+          ),
+        );
+      } else {
+        followRedirects = value.value > 0;
+      }
+      continue;
+    }
+    if (link.name === "query") {
+      const expression = expressionArgument(args[0]);
+      if (expression === undefined || url === undefined) continue;
+      const expanded = urlWithSearchParams(url, expression, bindings);
+      if (expanded === undefined) {
+        issues.push(
+          issue(
+            "url",
+            "Dynamic query cannot be resolved statically.",
+            source,
+            link.call,
+          ),
+        );
+      } else {
+        url = expanded;
+      }
+      continue;
+    }
+    if (link.name === "send") {
+      body = bodyFromExpression(expressionArgument(args[0]), bindings);
+      continue;
+    }
+    if (link.name === "field") {
+      const name = staticString(expressionArgument(args[0]), bindings);
+      const value = staticString(expressionArgument(args[1]), bindings);
+      if (name === undefined || value === undefined) {
+        issues.push(
+          issue(
+            "body",
+            "Dynamic multipart field cannot be resolved statically.",
+            source,
+            link.call,
+          ),
+        );
+      } else {
+        parts.push({ kind: "field", name, value });
+      }
+      continue;
+    }
+    if (link.name === "attach") {
+      const name = staticString(expressionArgument(args[0]), bindings);
+      const path = staticString(expressionArgument(args[1]), bindings);
+      if (name === undefined || path === undefined) {
+        issues.push(
+          issue(
+            "body",
+            "SuperAgent can only be read back when an attached file is a static path.",
+            source,
+            link.call,
+          ),
+        );
+        continue;
+      }
+      const optionsExpression = expressionArgument(args[2]);
+      const resolved =
+        optionsExpression === undefined
+          ? undefined
+          : resolveExpression(optionsExpression, bindings);
+      const options =
+        resolved !== undefined && t.isObjectExpression(resolved)
+          ? objectProperties(resolved)
+          : undefined;
+      const filename =
+        staticString(options?.get("filename"), bindings) ??
+        path.split("/").at(-1) ??
+        path;
+      const partType = staticString(options?.get("contentType"), bindings);
+      parts.push({
+        kind: "file",
+        name,
+        path,
+        filename,
+        ...(partType === undefined ? {} : { contentType: partType }),
+      });
+      continue;
+    }
+    issues.push(
+      issue(
+        "config",
+        `Unsupported SuperAgent step cannot be represented safely: ${link.name}.`,
+        source,
+        link.call,
+      ),
+    );
+  }
+
+  const effective =
+    parts.length > 0
+      ? headers.filter((header) => header.name.toLowerCase() !== "content-type")
+      : headers;
+  const resolvedBody =
+    parts.length > 0
+      ? ({ kind: "multipart", parts } as RequestBody)
+      : refineBodyForHeaders(body, effective);
+  if (resolvedBody === "dynamic") {
+    issues.push(
+      issue(
+        "body",
+        "Dynamic body cannot be resolved statically.",
+        source,
+        call,
+      ),
+    );
+  }
+  const normalized = normalizeHeaders(effective);
+  if (issues.length > 0) {
+    throw new DynamicExpressionError(issues, {
+      client: "superagent",
+      ...(method === undefined ? {} : { method }),
+      ...(url === undefined ? {} : { url }),
+      headers: normalized.headers,
+      cookies: normalized.cookies,
+      ...((auth ?? normalized.auth === undefined)
+        ? {}
+        : { auth: auth ?? normalized.auth }),
+      ...(resolvedBody === undefined || resolvedBody === "dynamic"
+        ? {}
+        : { body: resolvedBody }),
+      followRedirects,
+    });
+  }
+  return {
+    client: "superagent",
+    request: createHttpRequest(url ?? "", {
+      method: method ?? "GET",
+      headers: normalized.headers,
+      cookies: normalized.cookies,
+      ...(auth === undefined
+        ? normalized.auth === undefined
+          ? {}
+          : { auth: normalized.auth }
+        : { auth }),
+      ...(resolvedBody === undefined || resolvedBody === "dynamic"
+        ? {}
+        : { body: resolvedBody }),
+      followRedirects,
+    }),
+  };
+}
+
+/** The core HTTP modules, under both the bare and the `node:` specifier. */
+const NODE_HTTP_MODULES: readonly string[] = [
+  "node:https",
+  "node:http",
+  "https",
+  "http",
+];
+
+/**
+ * Names bound to `request` from `node:http` or `node:https`, plus the
+ * namespace forms that reach it as `https.request`.
+ */
+function nodeRequestNames(program: t.Program): {
+  readonly direct: ReadonlySet<string>;
+  readonly namespaces: ReadonlySet<string>;
+} {
+  const direct = new Set<string>();
+  const namespaces = new Set<string>();
+  for (const statement of program.body) {
+    if (
+      !t.isImportDeclaration(statement) ||
+      !NODE_HTTP_MODULES.includes(statement.source.value)
+    ) {
+      continue;
+    }
+    for (const specifier of statement.specifiers) {
+      if (
+        t.isImportSpecifier(specifier) &&
+        t.isIdentifier(specifier.imported, { name: "request" })
+      ) {
+        direct.add(specifier.local.name);
+      } else if (
+        t.isImportDefaultSpecifier(specifier) ||
+        t.isImportNamespaceSpecifier(specifier)
+      ) {
+        namespaces.add(specifier.local.name);
+      }
+    }
+  }
+  walk(program, (node) => {
+    if (
+      !t.isVariableDeclarator(node) ||
+      !t.isIdentifier(node.id) ||
+      !t.isCallExpression(node.init) ||
+      !t.isIdentifier(node.init.callee, { name: "require" })
+    ) {
+      return;
+    }
+    const argument = node.init.arguments[0];
+    if (
+      t.isStringLiteral(argument) &&
+      NODE_HTTP_MODULES.includes(argument.value)
+    ) {
+      namespaces.add(node.id.name);
+    }
+  });
+  return { direct, namespaces };
+}
+
+function isNodeRequestCallee(
+  callee: t.Node,
+  names: ReturnType<typeof nodeRequestNames>,
+): boolean {
+  if (t.isIdentifier(callee)) return names.direct.has(callee.name);
+  return (
+    t.isMemberExpression(callee) &&
+    !callee.computed &&
+    t.isIdentifier(callee.object) &&
+    names.namespaces.has(callee.object.name) &&
+    t.isIdentifier(callee.property, { name: "request" })
+  );
+}
+
+/** Header values `node:http` accepts: one string, or an array for duplicates. */
+function nodeHeaderEntries(
+  expression: t.Expression | undefined,
+  bindings: StaticBindings,
+): readonly Header[] | undefined {
+  if (expression === undefined) return [];
+  const node = resolveExpression(expression, bindings);
+  if (node === undefined) return undefined;
+  const value = evaluateStatic(node, bindings);
+  if (!value.ok || value.value === null || typeof value.value !== "object") {
+    return undefined;
+  }
+  if (Array.isArray(value.value)) return undefined;
+  const headers: Header[] = [];
+  for (const [name, entry] of Object.entries(value.value)) {
+    if (typeof entry === "string") {
+      headers.push({ name, value: entry });
+      continue;
+    }
+    // An array is how the core module carries the same field name twice.
+    if (Array.isArray(entry) && entry.every((one) => typeof one === "string")) {
+      for (const one of entry) headers.push({ name, value: one });
+      continue;
+    }
+    return undefined;
+  }
+  return headers;
+}
+
+/** The name a call's result was assigned to, when it was assigned at all. */
+function assignedName(
+  program: t.Program,
+  call: t.CallExpression,
+): string | undefined {
+  let name: string | undefined;
+  walk(program, (node) => {
+    if (
+      name !== undefined ||
+      !t.isVariableDeclarator(node) ||
+      !t.isIdentifier(node.id) ||
+      node.init !== call
+    ) {
+      return;
+    }
+    name = node.id.name;
+  });
+  return name;
+}
+
+function nodeHttpRequest(
+  source: string,
+  program: t.Program,
+  call: t.CallExpression,
+  bindings: StaticBindings,
+): ReverseParseResult {
+  const issues: DynamicIssue[] = [];
+  const url = staticUrlLike(expressionArgument(call.arguments[0]), bindings);
+  if (url === undefined) {
+    issues.push(
+      issue(
+        "url",
+        "The core modules can also take a host and path object; only a static URL string can be read back.",
+        source,
+        expressionArgument(call.arguments[0]),
+      ),
+    );
+  }
+  const optionsExpression = expressionArgument(call.arguments[1]);
+  let properties: ReadonlyMap<string, t.Expression> = new Map();
+  if (optionsExpression !== undefined && !t.isFunction(optionsExpression)) {
+    const resolved = resolveExpression(optionsExpression, bindings);
+    const object =
+      resolved !== undefined && t.isObjectExpression(resolved)
+        ? objectProperties(resolved)
+        : undefined;
+    if (object === undefined) {
+      issues.push(
+        issue(
+          "config",
+          "Dynamic request options cannot be resolved statically.",
+          source,
+          optionsExpression,
+        ),
+      );
+    } else {
+      properties = object;
+    }
+  }
+  for (const [name, expression] of properties) {
+    if (!["method", "headers"].includes(name)) {
+      issues.push(
+        issue(
+          "config",
+          `Unsupported node:http option cannot be represented safely: ${name}.`,
+          source,
+          expression,
+        ),
+      );
+    }
+  }
+  const method =
+    staticString(properties.get("method"), bindings) ??
+    (properties.has("method") ? undefined : "GET");
+  if (method === undefined) {
+    issues.push(
+      issue(
+        "method",
+        "Dynamic method cannot be resolved statically.",
+        source,
+        properties.get("method"),
+      ),
+    );
+  }
+  const headers = nodeHeaderEntries(properties.get("headers"), bindings);
+  if (headers === undefined) {
+    issues.push(
+      issue(
+        "headers",
+        "Dynamic headers cannot be resolved statically.",
+        source,
+        properties.get("headers"),
+      ),
+    );
+  }
+
+  // The payload is whatever was written to the request, in source order.
+  const variable = assignedName(program, call);
+  const written: string[] = [];
+  let dynamicWrite = false;
+  if (variable !== undefined) {
+    const after = call.end ?? 0;
+    const writes: Array<{ start: number; expression: t.Expression }> = [];
+    walk(program, (node) => {
+      if (
+        !t.isCallExpression(node) ||
+        !t.isMemberExpression(node.callee) ||
+        node.callee.computed ||
+        !t.isIdentifier(node.callee.object, { name: variable }) ||
+        !t.isIdentifier(node.callee.property) ||
+        !["write", "end"].includes(node.callee.property.name) ||
+        (node.start ?? 0) < after
+      ) {
+        return;
+      }
+      const argument = expressionArgument(node.arguments[0]);
+      if (argument === undefined) return;
+      writes.push({ start: node.start ?? 0, expression: argument });
+    });
+    for (const { expression } of writes.sort((a, b) => a.start - b.start)) {
+      const chunk =
+        staticString(expression, bindings) ??
+        bufferFromString(expression, bindings);
+      if (chunk === undefined) {
+        dynamicWrite = true;
+        continue;
+      }
+      written.push(chunk);
+    }
+  }
+  if (dynamicWrite) {
+    issues.push(
+      issue(
+        "body",
+        "Dynamic request payload cannot be resolved statically.",
+        source,
+        call,
+      ),
+    );
+  }
+
+  const payload = written.join("");
+  const declared = [...(headers ?? [])];
+  const declaredType = declared.find(
+    (header) => header.name.toLowerCase() === "content-type",
+  )?.value;
+  const boundary = /boundary=("?)([^";]+)\1/u.exec(declaredType ?? "")?.[2];
+  let body: RequestBody | undefined | "dynamic";
+  let effective = declared;
+  if (payload.length > 0 && boundary !== undefined) {
+    if (/filename="/u.test(payload)) {
+      issues.push(
+        issue(
+          "body",
+          "This multipart body carries a file's contents rather than its path, so the upload cannot be described as a cURL command.",
+          source,
+          call,
+        ),
+      );
+    } else {
+      const parts = parseMultipartBody(
+        payload.replaceAll("\r\n", "\n"),
+        boundary,
+      );
+      if (parts === undefined) {
+        issues.push(
+          issue(
+            "body",
+            "This request declares a multipart body whose parts could not be read.",
+            source,
+            call,
+          ),
+        );
+      } else {
+        body = {
+          kind: "multipart",
+          parts: parts.map(({ name, value }) => ({
+            kind: "field" as const,
+            name,
+            value,
+          })),
+        };
+        // The boundary is framing for this message, not part of the request.
+        effective = declared.filter(
+          (header) => header.name.toLowerCase() !== "content-type",
+        );
+      }
+    }
+  } else if (payload.length > 0) {
+    body = refineBodyForHeaders({ kind: "text", value: payload }, declared);
+  }
+
+  const normalized = normalizeHeaders(effective);
+  if (issues.length > 0) {
+    throw new DynamicExpressionError(issues, {
+      client: "https",
+      ...(method === undefined ? {} : { method }),
+      ...(url === undefined ? {} : { url }),
+      headers: normalized.headers,
+      cookies: normalized.cookies,
+      ...(normalized.auth === undefined ? {} : { auth: normalized.auth }),
+      ...(body === undefined || body === "dynamic" ? {} : { body }),
+      // The core modules do not follow redirects at all.
+      followRedirects: false,
+    });
+  }
+  return {
+    client: "https",
+    request: createHttpRequest(url ?? "", {
+      method: method ?? "GET",
+      headers: normalized.headers,
+      cookies: normalized.cookies,
+      ...(normalized.auth === undefined ? {} : { auth: normalized.auth }),
+      ...(body === undefined || body === "dynamic" ? {} : { body }),
+      followRedirects: false,
+    }),
+  };
+}
+
+/** `Buffer.from("...", "utf8")`, which is how binary chunks are written. */
+function bufferFromString(
+  expression: t.Expression,
+  bindings: StaticBindings,
+): string | undefined {
+  const node = resolveExpression(expression, bindings);
+  if (
+    node === undefined ||
+    !t.isCallExpression(node) ||
+    !t.isMemberExpression(node.callee) ||
+    !t.isIdentifier(node.callee.object, { name: "Buffer" }) ||
+    !t.isIdentifier(node.callee.property, { name: "from" })
+  ) {
+    return undefined;
+  }
+  return staticString(expressionArgument(node.arguments[0]), bindings);
+}
+
+/**
+ * jQuery and XMLHttpRequest both follow redirects and neither can be told not
+ * to, so a request read back from either states that policy rather than
+ * inheriting cURL's default of stopping at the first response.
+ */
+const BROWSER_ALWAYS_FOLLOWS = true;
+
+/** Options `$.ajax` accepts that describe the request itself. */
+const JQUERY_OPTIONS: readonly string[] = [
+  "url",
+  "method",
+  "type",
+  "headers",
+  "data",
+  "contentType",
+  "processData",
+];
+
+/** Options that decide response handling or transport, not what is sent. */
+const JQUERY_IGNORED: readonly string[] = [
+  "dataType",
+  "success",
+  "error",
+  "complete",
+  "cache",
+  "async",
+  "timeout",
+];
+
+function jqueryRequest(
+  source: string,
+  program: t.Program,
+  call: t.CallExpression,
+  bindings: StaticBindings,
+): ReverseParseResult {
+  const issues: DynamicIssue[] = [];
+  const configExpression = expressionArgument(call.arguments[0]);
+  const resolved =
+    configExpression === undefined
+      ? undefined
+      : resolveExpression(configExpression, bindings);
+  const properties =
+    resolved !== undefined && t.isObjectExpression(resolved)
+      ? objectProperties(resolved)
+      : undefined;
+  if (properties === undefined) {
+    throw new CodeParseError(
+      "This $.ajax call was not given a static settings object, so the request cannot be read back.",
+    );
+  }
+  for (const [name, expression] of properties) {
+    if (![...JQUERY_OPTIONS, ...JQUERY_IGNORED].includes(name)) {
+      issues.push(
+        issue(
+          "config",
+          `Unsupported $.ajax setting cannot be represented safely: ${name}.`,
+          source,
+          expression,
+        ),
+      );
+    }
+  }
+  const url = staticUrlLike(properties.get("url"), bindings);
+  if (url === undefined) {
+    issues.push(
+      issue(
+        "url",
+        "Dynamic URL cannot be resolved statically.",
+        source,
+        properties.get("url"),
+      ),
+    );
+  }
+  const methodExpression = properties.get("method") ?? properties.get("type");
+  const method =
+    methodExpression === undefined
+      ? "GET"
+      : staticString(methodExpression, bindings);
+  if (method === undefined) {
+    issues.push(
+      issue(
+        "method",
+        "Dynamic method cannot be resolved statically.",
+        source,
+        methodExpression,
+      ),
+    );
+  }
+  const headers = headerEntries(properties.get("headers"), bindings) ?? [];
+  const declared = [...headers];
+  const contentTypeExpression = properties.get("contentType");
+  if (contentTypeExpression !== undefined) {
+    const value = evaluateStatic(contentTypeExpression, bindings);
+    if (value.ok && typeof value.value === "string") {
+      declared.push({ name: "Content-Type", value: value.value });
+    } else if (!value.ok || value.value !== false) {
+      issues.push(
+        issue(
+          "headers",
+          "jQuery contentType must be a static media type or false.",
+          source,
+          contentTypeExpression,
+        ),
+      );
+    }
+  }
+  const dataExpression = properties.get("data");
+  const candidate = bodyFromExpression(dataExpression, bindings);
+  const body = refineBodyForHeaders(
+    candidate === "dynamic"
+      ? (staticFormDataBody(program, call, dataExpression, bindings) ??
+          "dynamic")
+      : candidate,
+    declared,
+  );
+  if (body === "dynamic") {
+    issues.push(
+      issue(
+        "body",
+        "Dynamic body cannot be resolved statically.",
+        source,
+        dataExpression,
+      ),
+    );
+  }
+  const normalized = normalizeHeaders(declared);
+  if (issues.length > 0) {
+    throw new DynamicExpressionError(issues, {
+      client: "jquery",
+      ...(method === undefined ? {} : { method }),
+      ...(url === undefined ? {} : { url }),
+      headers: normalized.headers,
+      cookies: normalized.cookies,
+      ...(normalized.auth === undefined ? {} : { auth: normalized.auth }),
+      ...(body === undefined || body === "dynamic" ? {} : { body }),
+      followRedirects: BROWSER_ALWAYS_FOLLOWS,
+    });
+  }
+  return {
+    client: "jquery",
+    request: createHttpRequest(url ?? "", {
+      method: method ?? "GET",
+      headers: normalized.headers,
+      cookies: normalized.cookies,
+      ...(normalized.auth === undefined ? {} : { auth: normalized.auth }),
+      ...(body === undefined || body === "dynamic" ? {} : { body }),
+      followRedirects: BROWSER_ALWAYS_FOLLOWS,
+    }),
+  };
+}
+
+/**
+ * The `send` call, which is the point every binding has to be resolvable at.
+ *
+ * Anchoring here rather than at the constructor lets a body declared just
+ * above the send resolve, which is how the call is usually written.
+ */
+function xhrSendCall(
+  program: t.Program,
+  declaration: t.VariableDeclarator,
+): t.CallExpression | undefined {
+  if (!t.isIdentifier(declaration.id)) return undefined;
+  const name = declaration.id.name;
+  let found: t.CallExpression | undefined;
+  walk(program, (node) => {
+    if (
+      found !== undefined ||
+      !t.isCallExpression(node) ||
+      !t.isMemberExpression(node.callee) ||
+      node.callee.computed ||
+      !t.isIdentifier(node.callee.object, { name }) ||
+      !t.isIdentifier(node.callee.property, { name: "send" })
+    ) {
+      return;
+    }
+    found = node;
+  });
+  return found;
+}
+
+function xhrRequest(
+  source: string,
+  program: t.Program,
+  declaration: t.VariableDeclarator,
+  bindings: StaticBindings,
+): ReverseParseResult {
+  const issues: DynamicIssue[] = [];
+  if (!t.isIdentifier(declaration.id)) {
+    throw new CodeParseError(
+      "This XMLHttpRequest was not assigned to a plain variable, so its calls cannot be followed.",
+    );
+  }
+  const name = declaration.id.name;
+  const start = declaration.end ?? 0;
+  const calls: Array<{
+    start: number;
+    call: t.CallExpression;
+    member: string;
+  }> = [];
+  // The whole request surface of an XMLHttpRequest is `open`, `setRequestHeader`
+  // and `send`. Everything else on the object reads a response or attaches an
+  // event handler, so the other members are passed over rather than reported:
+  // none of them can change what goes on the wire.
+  walk(program, (node) => {
+    if (
+      !t.isCallExpression(node) ||
+      !t.isMemberExpression(node.callee) ||
+      node.callee.computed ||
+      !t.isIdentifier(node.callee.object, { name }) ||
+      !t.isIdentifier(node.callee.property) ||
+      (node.start ?? 0) < start
+    ) {
+      return;
+    }
+    calls.push({
+      start: node.start ?? 0,
+      call: node,
+      member: node.callee.property.name,
+    });
+  });
+  calls.sort((a, b) => a.start - b.start);
+
+  let method: string | undefined;
+  let url: string | undefined;
+  let auth: RequestAuth | undefined;
+  const headers: Header[] = [];
+  let bodyExpression: t.Expression | undefined;
+  let sent = false;
+  for (const { call, member } of calls) {
+    if (member === "open") {
+      method = staticString(expressionArgument(call.arguments[0]), bindings);
+      url = staticUrlLike(expressionArgument(call.arguments[1]), bindings);
+      if (method === undefined || url === undefined) {
+        issues.push(
+          issue(
+            "url",
+            "XMLHttpRequest.open needs a static method and URL to be read back.",
+            source,
+            call,
+          ),
+        );
+      }
+      const username = staticString(
+        expressionArgument(call.arguments[3]),
+        bindings,
+      );
+      const password = staticString(
+        expressionArgument(call.arguments[4]),
+        bindings,
+      );
+      if (username !== undefined && password !== undefined) {
+        auth = { kind: "basic", username, password };
+      }
+      continue;
+    }
+    if (member === "setRequestHeader") {
+      const headerName = staticString(
+        expressionArgument(call.arguments[0]),
+        bindings,
+      );
+      const value = staticString(
+        expressionArgument(call.arguments[1]),
+        bindings,
+      );
+      if (headerName === undefined || value === undefined) {
+        issues.push(
+          issue(
+            "headers",
+            "Dynamic headers cannot be resolved statically.",
+            source,
+            call,
+          ),
+        );
+      } else {
+        headers.push({ name: headerName, value });
+      }
+      continue;
+    }
+    if (member === "send") {
+      sent = true;
+      bodyExpression = expressionArgument(call.arguments[0]);
+    }
+  }
+  if (!sent) {
+    throw new CodeParseError(
+      "This XMLHttpRequest is never sent, so there is no request to convert.",
+    );
+  }
+  const sendCall = calls.find(({ member }) => member === "send")?.call;
+  const candidate = bodyFromExpression(bodyExpression, bindings);
+  const body = refineBodyForHeaders(
+    candidate === "dynamic" && sendCall !== undefined
+      ? (staticFormDataBody(program, sendCall, bodyExpression, bindings) ??
+          "dynamic")
+      : candidate,
+    headers,
+  );
+  if (body === "dynamic") {
+    issues.push(
+      issue(
+        "body",
+        "Dynamic body cannot be resolved statically.",
+        source,
+        bodyExpression,
+      ),
+    );
+  }
+  const normalized = normalizeHeaders(headers);
+  const resolvedAuth = auth ?? normalized.auth;
+  if (issues.length > 0) {
+    throw new DynamicExpressionError(issues, {
+      client: "xhr",
+      ...(method === undefined ? {} : { method }),
+      ...(url === undefined ? {} : { url }),
+      headers: normalized.headers,
+      cookies: normalized.cookies,
+      ...(resolvedAuth === undefined ? {} : { auth: resolvedAuth }),
+      ...(body === undefined || body === "dynamic" ? {} : { body }),
+      followRedirects: BROWSER_ALWAYS_FOLLOWS,
+    });
+  }
+  return {
+    client: "xhr",
+    request: createHttpRequest(url ?? "", {
+      method: method ?? "GET",
+      headers: normalized.headers,
+      cookies: normalized.cookies,
+      ...(resolvedAuth === undefined ? {} : { auth: resolvedAuth }),
+      ...(body === undefined || body === "dynamic" ? {} : { body }),
+      followRedirects: BROWSER_ALWAYS_FOLLOWS,
+    }),
+  };
+}
+
+/** Per-verb shortcuts Got and Ky expose beside the options form. */
+const SHORTCUT_METHODS: readonly string[] = [
+  "get",
+  "post",
+  "put",
+  "patch",
+  "delete",
+  "head",
+];
+
+/** A `client.post(url, options)` shortcut on one of the bound names. */
+function shortcutCall(
+  call: t.CallExpression,
+  names: ReadonlySet<string>,
+): string | undefined {
+  if (
+    !t.isMemberExpression(call.callee) ||
+    call.callee.computed ||
+    !t.isIdentifier(call.callee.object) ||
+    !names.has(call.callee.object.name) ||
+    !t.isIdentifier(call.callee.property) ||
+    !SHORTCUT_METHODS.includes(call.callee.property.name)
+  ) {
+    return undefined;
+  }
+  return call.callee.property.name.toUpperCase();
+}
+
+/** `$.ajax({...})` or `jQuery.ajax({...})`. */
+function isJqueryAjax(callee: t.Node): boolean {
+  return (
+    t.isMemberExpression(callee) &&
+    !callee.computed &&
+    t.isIdentifier(callee.object) &&
+    ["$", "jQuery"].includes(callee.object.name) &&
+    t.isIdentifier(callee.property, { name: "ajax" })
+  );
+}
+
 export function parseJavaScriptRequest(source: string): ReverseParseResult {
   let ast: ReturnType<typeof parse>;
   try {
@@ -1321,23 +2657,105 @@ export function parseJavaScriptRequest(source: string): ReverseParseResult {
       `Unable to parse JavaScript/TypeScript: ${message}`,
     );
   }
-  let match:
-    | {
-        readonly call: t.CallExpression;
-        readonly client: "fetch" | "axios" | "undici";
-        readonly kind?: NonNullable<ReturnType<typeof axiosCallKind>>;
-      }
-    | undefined;
+
+  // XMLHttpRequest is identified by its constructor rather than by a call, so
+  // it is settled before the call walk begins.
+  let xhrDeclaration: t.VariableDeclarator | undefined;
+  walk(ast.program, (node) => {
+    if (
+      xhrDeclaration !== undefined ||
+      !t.isVariableDeclarator(node) ||
+      !t.isNewExpression(node.init) ||
+      !t.isIdentifier(node.init.callee, { name: "XMLHttpRequest" })
+    ) {
+      return;
+    }
+    xhrDeclaration = node;
+  });
+  if (xhrDeclaration !== undefined) {
+    const anchor = xhrSendCall(ast.program, xhrDeclaration);
+    if (anchor === undefined) {
+      throw new CodeParseError(
+        "This XMLHttpRequest is never sent, so there is no request to convert.",
+      );
+    }
+    const bindings = collectStaticBindings(ast.program, anchor);
+    return xhrRequest(source, ast.program, xhrDeclaration, bindings);
+  }
+
   const axiosNames = axiosBindingNames(ast.program);
   const undiciNames = undiciRequestNames(ast.program);
+  const gotNames = defaultImportNames(ast.program, "got", "got");
+  const kyNames = defaultImportNames(ast.program, "ky", "ky");
+  const superagentNames = defaultImportNames(
+    ast.program,
+    "superagent",
+    "superagent",
+  );
+  const nodeNames = nodeRequestNames(ast.program);
   const instances = axiosInstanceConfigs(ast.program, axiosNames);
   // Instance variables answer to the same call shapes as the `axios` import.
   const callableNames = new Set([...axiosNames, ...instances.keys()]);
+
+  let match:
+    | {
+        readonly call: t.CallExpression;
+        readonly client:
+          | "fetch"
+          | "axios"
+          | "undici"
+          | "got"
+          | "ky"
+          | "superagent"
+          | "https"
+          | "jquery";
+        readonly kind?: NonNullable<ReturnType<typeof axiosCallKind>>;
+        readonly shortcut?: string;
+      }
+    | undefined;
   let instanceName: string | undefined;
   walk(ast.program, (node) => {
     if (match !== undefined || !t.isCallExpression(node)) return;
-    // Undici is checked first because a project may import both, and its
-    // `request` export is a distinct call shape from `fetch`.
+    if (isJqueryAjax(node.callee)) {
+      match = { call: node, client: "jquery" };
+      return;
+    }
+    if (isNodeRequestCallee(node.callee, nodeNames)) {
+      match = { call: node, client: "https" };
+      return;
+    }
+    // A SuperAgent chain is matched at its outermost call, which `walk` reaches
+    // first, so the whole chain is available to the reader.
+    const chainRoot = flattenChain(node).base;
+    if (
+      (t.isIdentifier(chainRoot.callee) &&
+        superagentNames.has(chainRoot.callee.name)) ||
+      (t.isMemberExpression(chainRoot.callee) &&
+        !chainRoot.callee.computed &&
+        t.isIdentifier(chainRoot.callee.object) &&
+        superagentNames.has(chainRoot.callee.object.name) &&
+        t.isIdentifier(chainRoot.callee.property) &&
+        chainRoot.callee.property.name in SUPERAGENT_METHODS)
+    ) {
+      match = { call: node, client: "superagent" };
+      return;
+    }
+    for (const [client, names] of [
+      ["got", gotNames],
+      ["ky", kyNames],
+    ] as const) {
+      if (t.isIdentifier(node.callee) && names.has(node.callee.name)) {
+        match = { call: node, client };
+        return;
+      }
+      const shortcut = shortcutCall(node, names);
+      if (shortcut !== undefined) {
+        match = { call: node, client, shortcut };
+        return;
+      }
+    }
+    // Undici is checked before fetch because a project may import both, and its
+    // `request` export is a distinct call shape.
     if (isUndiciCallee(node.callee, undiciNames)) {
       match = { call: node, client: "undici" };
       return;
@@ -1362,13 +2780,36 @@ export function parseJavaScriptRequest(source: string): ReverseParseResult {
   });
   if (match === undefined)
     throw new CodeParseError(
-      "No supported fetch(), Undici, or Axios request was found.",
+      "No supported JavaScript request was found. This reader recognises fetch, Axios, Undici, Got, Ky, SuperAgent, node:http and node:https, jQuery, and XMLHttpRequest.",
     );
   const bindings = collectStaticBindings(ast.program, match.call);
+  if (match.client === "jquery")
+    return jqueryRequest(source, ast.program, match.call, bindings);
+  if (match.client === "https")
+    return nodeHttpRequest(source, ast.program, match.call, bindings);
+  if (match.client === "superagent")
+    return superagentRequest(source, match.call, bindings);
+  if (match.client === "got" || match.client === "ky") {
+    return optionsClientRequest(
+      source,
+      ast.program,
+      match.call,
+      bindings,
+      match.client === "got" ? GOT_DIALECT : KY_DIALECT,
+      match.shortcut,
+    );
+  }
   if (match.client === "undici")
     return undiciRequest(source, ast.program, match.call, bindings);
   return match.client === "fetch"
-    ? fetchRequest(source, ast.program, match.call, bindings)
+    ? optionsClientRequest(
+        source,
+        ast.program,
+        match.call,
+        bindings,
+        FETCH_DIALECT,
+        undefined,
+      )
     : axiosRequest(
         source,
         ast.program,

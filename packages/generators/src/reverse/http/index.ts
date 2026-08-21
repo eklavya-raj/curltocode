@@ -53,7 +53,14 @@ function unfold(lines: readonly string[]): readonly string[] {
   return unfolded;
 }
 
-function parseMultipart(
+/**
+ * Split a multipart body into its named parts.
+ *
+ * Exported because the `node:http` reader faces the same problem: that target
+ * writes the multipart message out by hand, so what comes back is bytes rather
+ * than a structured form.
+ */
+export function parseMultipartBody(
   body: string,
   boundary: string,
 ): readonly { readonly name: string; readonly value: string }[] | undefined {
@@ -179,7 +186,7 @@ export function parseHttpMessageRequest(source: string): ReverseParseResult {
 
   const boundary = /boundary=("?)([^";]+)\1/u.exec(contentType ?? "")?.[2];
   if (body !== undefined && boundary !== undefined) {
-    const parts = parseMultipart(body, boundary);
+    const parts = parseMultipartBody(body, boundary);
     if (parts === undefined) {
       throw new CodeParseError(
         "This message declares a multipart body, but its parts could not be read. Each part needs a Content-Disposition line naming the field.",

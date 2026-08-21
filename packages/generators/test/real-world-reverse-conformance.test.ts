@@ -10,6 +10,7 @@ import {
   generateCode,
   generatorTargets,
   reverseTargets,
+  targetsThatAlwaysFollowRedirects,
   targetsWithoutRedirectPolicy,
 } from "../src/index.js";
 import type { HttpRequest } from "@curltocode/core";
@@ -39,9 +40,11 @@ const withoutRedirectPolicy = (request: HttpRequest): HttpRequest => ({
 describe.each(reverseTargets)(
   "$language-$client real-world reverse conformance",
   (target) => {
-    const carriesRedirectPolicy = !targetsWithoutRedirectPolicy.includes(
+    const alwaysFollows = targetsThatAlwaysFollowRedirects.includes(
       target.client,
     );
+    const carriesRedirectPolicy =
+      !alwaysFollows && !targetsWithoutRedirectPolicy.includes(target.client);
     const generator = generatorTargets.find(
       ({ language, client }) =>
         language === target.language && client === target.client,
@@ -70,7 +73,13 @@ describe.each(reverseTargets)(
         const recovered = parseCodeRequest(source, target.parserLanguage);
 
         expect(recovered.client).toBe(target.client);
-        if (!carriesRedirectPolicy) {
+        if (alwaysFollows) {
+          // The client follows a 3xx and cannot be told not to, so the code
+          // really does say "follows" whatever the original command asked for.
+          // Asserting the recovered value keeps that from turning into a
+          // parser that simply dropped the field.
+          expect(recovered.request.options.followRedirects).toBe(true);
+        } else if (!carriesRedirectPolicy) {
           // The format has no field for it, so the recovered request keeps the
           // default instead of guessing. Asserting that here keeps the
           // exemption from quietly covering a parser that simply lost the

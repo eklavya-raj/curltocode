@@ -286,12 +286,22 @@ export function readPhp(source: string): PhpSource {
       continue;
     }
 
-    // A plain function call.
+    // A plain function call, or a step in a fluent chain such as
+    // `Http::withHeaders([...])->withBody(...)`, whose receiver is the previous
+    // call's result rather than a name.
     if (next?.kind === "op" && next.value === "(") {
+      const previous = tokens[index - 1];
+      const arrow =
+        previous?.kind === "op" &&
+        (previous.value === "->" || previous.value === "::");
+      // A `$receiver->method(` call was already recorded at the receiver, so
+      // recording it again here would double every argument it carries.
+      if (arrow && tokens[index - 2]?.kind === "name") continue;
       const reader = new TokenReader(tokens);
       reader.seek(index + 1);
       calls.push({
         callee: token.value,
+        ...(arrow ? { method: token.value } : {}),
         args: parseCallArguments(reader, source, bindings),
         start: token.start,
       });

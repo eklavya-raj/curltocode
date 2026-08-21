@@ -9,10 +9,7 @@ import type {
 import { hasDuplicateHeaderNames, materializeHeaders } from "../headers.js";
 import type { CodeGenerator, GeneratedCode, GeneratorId } from "../types.js";
 import { GeneratorError } from "../types.js";
-
-function pyString(value: string): string {
-  return JSON.stringify(value).replaceAll("\\/", "/");
-}
+import { pythonString as pyString } from "./literal.js";
 
 function indent(value: string, spaces: number): string {
   return value.replaceAll("\n", `\n${" ".repeat(spaces)}`);

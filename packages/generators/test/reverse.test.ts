@@ -340,7 +340,7 @@ describe("parseJavaScriptRequest", () => {
       expect.objectContaining({ code: "CODE_PARSE_ERROR" }),
     );
     expect(() => parseJavaScriptRequest("const value = 1;")).toThrowError(
-      /No supported fetch/u,
+      /No supported JavaScript request was found/u,
     );
   });
 

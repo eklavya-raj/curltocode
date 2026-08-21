@@ -605,12 +605,56 @@ h1 {
   padding: 11px 14px;
   font-size: 0.85rem;
 }
+/* Shown when one input holds several requests: a script of cURL commands, or a
+   HAR archive. */
+.request-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-2, transparent);
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.request-picker label {
+  white-space: nowrap;
+}
+.request-picker select {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+}
 .dependency-note {
   margin: 0;
   padding: 9px 14px;
   border-top: 1px solid var(--line);
   color: var(--muted);
   font-size: 0.78rem;
+}
+.secrets-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.74rem;
+  color: var(--muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.variable-list {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 3px;
+}
+.dependency-note p {
+  margin: 0;
 }
 .dependency-note code {
   color: var(--ink);

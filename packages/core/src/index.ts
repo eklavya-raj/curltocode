@@ -4,4 +4,5 @@ export * from "./model.js";
 export * from "./normalize.js";
 export * from "./parser.js";
 export * from "./request.js";
+export * from "./script.js";
 export * from "./tokenizer.js";

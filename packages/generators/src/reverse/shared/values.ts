@@ -63,13 +63,24 @@ export function asBoolean(value: StaticValue): boolean | undefined {
  * disagree about which one represents headers, and a list form is what
  * preserves a repeated name.
  */
+/**
+ * A map key as a name.
+ *
+ * Several languages let a key be written as a bare word — Ruby's `username:`,
+ * JavaScript's shorthand, Kotlin's named arguments — and in every one of them
+ * the word is the key, not a variable to look up.
+ */
+function keyName(value: StaticValue): string | undefined {
+  return value.kind === "identifier" ? value.name : asString(value);
+}
+
 export function asPairs(
   value: StaticValue,
 ): readonly { readonly name: string; readonly value: string }[] | undefined {
   if (value.kind === "map") {
     const pairs: { name: string; value: string }[] = [];
     for (const entry of value.entries) {
-      const name = asString(entry.key);
+      const name = keyName(entry.key);
       const entryValue = asString(entry.value);
       if (name === undefined || entryValue === undefined) return undefined;
       pairs.push({ name, value: entryValue });

@@ -22,6 +22,12 @@ export interface SourceCall {
    */
   readonly path: string;
   readonly args: readonly StaticValue[];
+  /**
+   * Arguments that carried a label, such as Ruby's `headers:` or Kotlin's
+   * `body =`. They also appear in `args`, in source order, so a reader that
+   * only cares about position is unaffected.
+   */
+  readonly keywords: ReadonlyMap<string, StaticValue>;
   readonly start: number;
 }
 
@@ -228,7 +234,7 @@ export function readChain(
     }
     const path = readForwardPath(reader);
     if (reader.atOperator("(")) {
-      const args = parseArguments(reader, bindings);
+      const { args } = parseArguments(reader, bindings);
       if (
         transparent.has(path) ||
         transparent.has(path.split(/[.:]+/u).at(-1) ?? "")
@@ -267,21 +273,50 @@ export function readChain(
   function parseArguments(
     reader: TokenReader,
     bindings?: ReadonlyMap<string, StaticValue>,
-  ): readonly StaticValue[] {
+  ): {
+    readonly args: readonly StaticValue[];
+    readonly keywords: ReadonlyMap<string, StaticValue>;
+  } {
     reader.eatOperator("(");
     const args: StaticValue[] = [];
+    const keywords = new Map<string, StaticValue>();
     while (!reader.atOperator(")")) {
       if (reader.peek() === undefined) break;
       // A named argument such as Ruby's `use_ssl:` carries its label first.
+      // The label decides what the value means in every client that offers
+      // both a positional and a keyword form, so it is kept rather than
+      // skipped.
+      let label: string | undefined;
       if (reader.peek()?.kind === "name" && reader.atOperator(":", 1)) {
+        label = reader.peek()?.value;
         reader.next();
         reader.next();
       }
-      args.push(parseExpression(reader, bindings));
+      const value = parseExpression(reader, bindings);
+      args.push(value);
+      if (label !== undefined) keywords.set(label, value);
+      // An argument this reader cannot model — a closure, a trailing lambda, a
+      // type expression — leaves it mid-argument. Skipping to the next
+      // top-level separator keeps the arguments that follow, which is where the
+      // URL and the method usually are.
+      if (!reader.atOperator(",") && !reader.atOperator(")")) {
+        let depth = 0;
+        while (reader.peek() !== undefined) {
+          const token = reader.peek();
+          if (token?.kind === "op") {
+            if (["(", "[", "{"].includes(token.value)) depth += 1;
+            else if ([")", "]", "}"].includes(token.value)) {
+              if (token.value === ")" && depth === 0) break;
+              depth -= 1;
+            } else if (token.value === "," && depth === 0) break;
+          }
+          reader.next();
+        }
+      }
       if (!reader.eatOperator(",")) break;
     }
     reader.eatOperator(")");
-    return args;
+    return { args, keywords };
   }
 
   function parseList(
@@ -290,13 +325,24 @@ export function readChain(
   ): StaticValue {
     reader.eatOperator("[");
     const items: StaticValue[] = [];
+    const entries: StaticEntry[] = [];
     while (!reader.atOperator("]")) {
       if (reader.peek() === undefined) break;
-      items.push(parseExpression(reader, bindings));
+      const item = parseExpression(reader, bindings);
+      // Swift and Dart write a dictionary with the same brackets as an array,
+      // telling the two apart by the colon between key and value.
+      if (reader.atOperator(":")) {
+        reader.next();
+        entries.push({ key: item, value: parseExpression(reader, bindings) });
+      } else {
+        items.push(item);
+      }
       if (!reader.eatOperator(",")) break;
     }
     reader.eatOperator("]");
-    return { kind: "list", items };
+    return entries.length > 0
+      ? { kind: "map", entries }
+      : { kind: "list", items };
   }
 
   function parseMap(
@@ -333,6 +379,24 @@ export function readChain(
       }
       if (!reader.eatOperator(",") && !reader.eatOperator(";")) break;
     }
+    // A closure and a map literal open with the same brace. When the contents
+    // turn out not to be entries, the block is still consumed as a unit so the
+    // arguments after it — often the URL and the method — are still read.
+    if (!reader.atOperator("}")) {
+      let depth = 0;
+      while (reader.peek() !== undefined) {
+        const token = reader.peek();
+        if (token?.kind === "op") {
+          if (["(", "[", "{"].includes(token.value)) depth += 1;
+          else if ([")", "]"].includes(token.value)) depth -= 1;
+          else if (token.value === "}") {
+            if (depth === 0) break;
+            depth -= 1;
+          }
+        }
+        reader.next();
+      }
+    }
     reader.eatOperator("}");
     return { kind: "map", entries };
   }
@@ -366,7 +430,27 @@ export function readChain(
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index];
     if (token?.kind !== "name") continue;
-    const next = tokens[index + 1];
+    // `let headers: HTTPHeaders = [...]` and `val body: RequestBody = ...`
+    // annotate the type between the name and the value. Skipping the
+    // annotation is what lets an annotated binding resolve at all.
+    let equals = index + 1;
+    if (
+      tokens[equals]?.kind === "op" &&
+      tokens[equals]?.value === ":" &&
+      tokens[equals + 1]?.kind === "name"
+    ) {
+      equals += 2;
+      // A generic or qualified type may follow, such as `Map<String, String>`.
+      while (
+        tokens[equals]?.kind === "op" &&
+        [".", "<", ">", "?", ",", "[", "]"].includes(
+          tokens[equals]?.value ?? "",
+        )
+      ) {
+        equals += tokens[equals + 1]?.kind === "name" ? 2 : 1;
+      }
+    }
+    const next = tokens[equals];
     if (next?.kind !== "op" || next.value !== "=") continue;
     // A binding is either statement-initial or introduced by a keyword.
     const previous = tokens[index - 1];
@@ -382,10 +466,10 @@ export function readChain(
       source.slice(previous.end, token.start).includes("\n");
     if (!startsStatement) continue;
     // `==` and `=>` are not assignments.
-    if (tokens[index + 2]?.kind === "op" && tokens[index + 2]?.value === "=")
+    if (tokens[equals + 1]?.kind === "op" && tokens[equals + 1]?.value === "=")
       continue;
     const reader = new TokenReader(tokens);
-    reader.seek(index + 2);
+    reader.seek(equals + 1);
     const value = parseExpression(reader);
     seen.set(token.value, seen.has(token.value) ? undefined : value);
   }
@@ -404,10 +488,12 @@ export function readChain(
       const { path, start } = pathEndingAt(tokens, index);
       const reader = new TokenReader(tokens);
       reader.seek(index + 1);
+      const parsed = parseArguments(reader, bindings);
       calls.push({
         method: token.value,
         path,
-        args: parseArguments(reader, bindings),
+        args: parsed.args,
+        keywords: parsed.keywords,
         start,
       });
       continue;
@@ -415,6 +501,11 @@ export function readChain(
 
     // `target.field = value` and `target["key"] = value`.
     if (next?.kind === "op" && (next.value === "." || next.value === "[")) {
+      // The same assignment is reachable from every segment of its path, so
+      // only the first segment records it. Starting mid-path would file the
+      // one statement again under a shorter target name.
+      const previous = tokens[index - 1];
+      if (previous?.kind === "op" && previous.value === ".") continue;
       const reader = new TokenReader(tokens);
       reader.seek(index);
       const target = readForwardPath(reader);

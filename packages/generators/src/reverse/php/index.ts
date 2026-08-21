@@ -12,7 +12,11 @@ import {
 } from "../shared/values.js";
 import type { StaticValue } from "../shared/values.js";
 import { CodeParseError, DynamicExpressionError } from "../types.js";
-import type { DynamicIssue, ReverseParseResult } from "../types.js";
+import type {
+  DynamicIssue,
+  ReverseClient,
+  ReverseParseResult,
+} from "../types.js";
 import { readPhp, resolve } from "./syntax.js";
 import type { PhpCall } from "./syntax.js";
 
@@ -289,11 +293,51 @@ function fromCurlExtension(
   };
 }
 
-function fromGuzzle(
+/**
+ * A PHP client whose request is `(method, url, options)`.
+ *
+ * Guzzle and Symfony's HttpClient share that shape exactly and disagree only
+ * about what the options are called, so the differences are data here rather
+ * than a second copy of the reader.
+ */
+interface PhpOptionsDialect {
+  readonly client: ReverseClient;
+  /** Name used when reporting something that could not be read. */
+  readonly label: string;
+  /** Option carrying basic credentials as a two-item list. */
+  readonly authOption: string;
+  /** Either Guzzle's boolean switch or Symfony's redirect budget. */
+  readonly redirect:
+    | { readonly kind: "boolean"; readonly option: string }
+    | { readonly kind: "budget"; readonly option: string };
+  /** Whether `new FormDataPart([...])` supplies the body, as Symfony does. */
+  readonly formDataPart: boolean;
+}
+
+const GUZZLE_DIALECT: PhpOptionsDialect = {
+  client: "guzzle",
+  label: "Guzzle",
+  authOption: "auth",
+  redirect: { kind: "boolean", option: "allow_redirects" },
+  formDataPart: false,
+};
+
+const SYMFONY_DIALECT: PhpOptionsDialect = {
+  client: "symfony",
+  label: "Symfony HttpClient",
+  authOption: "auth_basic",
+  redirect: { kind: "budget", option: "max_redirects" },
+  formDataPart: true,
+};
+
+function fromOptionsClient(
   call: PhpCall,
   bindings: ReadonlyMap<string, StaticValue>,
+  calls: readonly PhpCall[],
+  dialect: PhpOptionsDialect,
 ): ReverseParseResult {
   const issues: DynamicIssue[] = [];
+  const { client, label } = dialect;
   const named = call.method !== undefined && GUZZLE_METHODS.has(call.method);
   const methodValue = named
     ? undefined
@@ -316,7 +360,7 @@ function fromGuzzle(
     issues.push(
       issue(
         "method",
-        "Dynamic Guzzle method cannot be resolved statically.",
+        `Dynamic ${label} method cannot be resolved statically.`,
         "request()",
       ),
     );
@@ -327,21 +371,44 @@ function fromGuzzle(
     issues.push(
       issue(
         "url",
-        "Dynamic Guzzle URL cannot be resolved statically.",
+        `Dynamic ${label} URL cannot be resolved statically.`,
         firstUnresolved(urlValue) ?? "url",
       ),
     );
   }
 
+  // Symfony's multipart form writes the parts into `new FormDataPart([...])`
+  // and passes the whole thing through two calls the reader cannot evaluate.
+  // Both are recovered from the surrounding statements instead.
+  const formDataPart = dialect.formDataPart
+    ? calls.find((candidate) => candidate.callee === "FormDataPart")
+    : undefined;
+
   let headers: Header[] = [];
-  const headerValue = mapEntry(optionsValue, "headers");
+  let headerValue = mapEntry(optionsValue, "headers");
+  if (
+    headerValue !== undefined &&
+    asPairs(headerValue) === undefined &&
+    firstUnresolved(headerValue)?.includes("getPreparedHeaders") === true
+  ) {
+    // `array_merge($formData->getPreparedHeaders()->toArray(), [...])`. The
+    // prepared half is the multipart Content-Type and its boundary, which is
+    // framing for this message rather than part of the request, so only the
+    // literal half is read.
+    const merge = calls.find((candidate) => candidate.callee === "array_merge");
+    const literal = merge?.args.find(
+      (argument) => asPairs(resolve(argument, bindings)) !== undefined,
+    );
+    headerValue =
+      literal === undefined ? headerValue : resolve(literal, bindings);
+  }
   if (headerValue !== undefined) {
     const pairs = asPairs(headerValue);
     if (pairs === undefined) {
       issues.push(
         issue(
           "headers",
-          "Dynamic Guzzle headers cannot be resolved statically.",
+          `Dynamic ${label} headers cannot be resolved statically.`,
           firstUnresolved(headerValue) ?? "headers",
         ),
       );
@@ -355,7 +422,7 @@ function fromGuzzle(
       issues.push(
         issue(
           "url",
-          "Dynamic Guzzle query cannot be resolved statically.",
+          `Dynamic ${label} query cannot be resolved statically.`,
           firstUnresolved(queryValue) ?? "query",
         ),
       );
@@ -363,17 +430,35 @@ function fromGuzzle(
   }
 
   let body: RequestBody | undefined;
+  if (formDataPart !== undefined) {
+    const fields = asPairs(
+      resolve(formDataPart.args[0] ?? { kind: "null" }, bindings),
+    );
+    if (fields === undefined) {
+      issues.push(
+        issue(
+          "body",
+          `Dynamic ${label} multipart body cannot be resolved statically.`,
+          "FormDataPart",
+        ),
+      );
+    } else {
+      body = multipartBody(fields);
+    }
+  }
   const multipartValue = mapEntry(optionsValue, "multipart");
   const jsonValue = mapEntry(optionsValue, "json");
   const formValue = mapEntry(optionsValue, "form_params");
   const bodyValue = mapEntry(optionsValue, "body");
-  if (multipartValue !== undefined) {
+  if (formDataPart !== undefined) {
+    // Already read above.
+  } else if (multipartValue !== undefined) {
     body = guzzleMultipart(multipartValue);
     if (body === undefined) {
       issues.push(
         issue(
           "body",
-          "Dynamic Guzzle multipart body cannot be resolved statically.",
+          `Dynamic ${label} multipart body cannot be resolved statically.`,
           firstUnresolved(multipartValue) ?? "multipart",
         ),
       );
@@ -384,7 +469,7 @@ function fromGuzzle(
       issues.push(
         issue(
           "body",
-          "Dynamic Guzzle json body cannot be resolved statically.",
+          `Dynamic ${label} json body cannot be resolved statically.`,
           firstUnresolved(jsonValue) ?? "json",
         ),
       );
@@ -416,24 +501,30 @@ function fromGuzzle(
       issues.push(
         issue(
           "body",
-          "Dynamic Guzzle body cannot be resolved statically.",
+          `Dynamic ${label} body cannot be resolved statically.`,
           firstUnresolved(bodyValue) ?? "body",
         ),
       );
     }
   }
 
-  const authValue = mapEntry(optionsValue, "auth");
+  const authValue = mapEntry(optionsValue, dialect.authOption);
   const auth = authValue === undefined ? undefined : authFrom(authValue);
 
-  const redirectValue = mapEntry(optionsValue, "allow_redirects");
+  const redirectValue = mapEntry(optionsValue, dialect.redirect.option);
   const followRedirects =
-    redirectValue === undefined ? true : (asBoolean(redirectValue) ?? true);
+    redirectValue === undefined
+      ? true
+      : dialect.redirect.kind === "boolean"
+        ? (asBoolean(redirectValue) ?? true)
+        : redirectValue.kind === "number"
+          ? redirectValue.value > 0
+          : true;
 
   const normalized = normalizeHeaders(headers);
   if (issues.length > 0) {
     throw new DynamicExpressionError(issues, {
-      client: "guzzle",
+      client,
       ...(method === undefined ? {} : { method }),
       ...(url === undefined ? {} : { url }),
       headers: normalized.headers,
@@ -444,7 +535,7 @@ function fromGuzzle(
   }
   const effectiveAuth = auth ?? normalized.auth;
   return {
-    client: "guzzle",
+    client,
     request: createHttpRequest(url ?? "", {
       method: method ?? "GET",
       headers: normalized.headers,
@@ -486,12 +577,291 @@ function toJson(value: StaticValue): unknown {
   }
 }
 
+/** Laravel steps that decide response handling rather than the request. */
+const LARAVEL_IGNORED: ReadonlySet<string> = new Set([
+  "timeout",
+  "retry",
+  "connectTimeout",
+  "throw",
+  "acceptJson",
+  "accept",
+]);
+
+/**
+ * Read Laravel's HTTP client, which is a fluent chain on the `Http` facade.
+ *
+ * The chain steps arrive as bare calls because their receiver is the previous
+ * call's result rather than a name, so they are matched on the step name. That
+ * is safe here: the reader only runs once the source has been identified as
+ * Laravel by its facade.
+ */
+function fromLaravel(
+  calls: readonly PhpCall[],
+  bindings: ReadonlyMap<string, StaticValue>,
+): ReverseParseResult {
+  const issues: DynamicIssue[] = [];
+  const headers: Header[] = [];
+  const parts: { name: string; value: string }[] = [];
+  let method: string | undefined;
+  let url: string | undefined;
+  let auth: RequestAuth | undefined;
+  let bodyText: string | undefined;
+  let bodyContentType: string | undefined;
+  let formPayload: StaticValue | undefined;
+  let jsonPayload: StaticValue | undefined;
+  // Laravel wraps Guzzle, which follows redirects unless told not to.
+  let followRedirects = true;
+  let found = false;
+
+  const argument = (call: PhpCall, index: number): StaticValue =>
+    resolve(call.args[index] ?? { kind: "null" }, bindings);
+
+  for (const call of calls) {
+    const step = call.method ?? call.callee;
+    if (LARAVEL_IGNORED.has(step)) continue;
+    switch (step) {
+      case "withHeaders": {
+        const pairs = asPairs(argument(call, 0));
+        if (pairs === undefined) {
+          issues.push(
+            issue(
+              "headers",
+              "Dynamic Laravel headers cannot be resolved statically.",
+              "withHeaders()",
+            ),
+          );
+          break;
+        }
+        for (const pair of pairs) headers.push(pair);
+        break;
+      }
+      case "withHeader": {
+        const name = asString(argument(call, 0));
+        const value = asString(argument(call, 1));
+        if (name === undefined || value === undefined) {
+          issues.push(
+            issue(
+              "headers",
+              "Dynamic Laravel header cannot be resolved statically.",
+              "withHeader()",
+            ),
+          );
+          break;
+        }
+        headers.push({ name, value });
+        break;
+      }
+      case "withBasicAuth": {
+        const username = asString(argument(call, 0));
+        const password = asString(argument(call, 1));
+        if (username === undefined || password === undefined) {
+          issues.push(
+            issue(
+              "headers",
+              "Dynamic Laravel credentials cannot be resolved statically.",
+              "withBasicAuth()",
+            ),
+          );
+          break;
+        }
+        auth = { kind: "basic", username, password };
+        break;
+      }
+      case "withToken": {
+        const token = asString(argument(call, 0));
+        if (token === undefined) break;
+        headers.push({ name: "Authorization", value: `Bearer ${token}` });
+        break;
+      }
+      case "withBody": {
+        const text = asString(argument(call, 0));
+        if (text === undefined) {
+          issues.push(
+            issue(
+              "body",
+              "Dynamic Laravel body cannot be resolved statically.",
+              "withBody()",
+            ),
+          );
+          break;
+        }
+        bodyText = text;
+        bodyContentType = asString(argument(call, 1));
+        break;
+      }
+      case "attach": {
+        const name = asString(argument(call, 0));
+        const value = asString(argument(call, 1));
+        if (name === undefined || value === undefined) {
+          issues.push(
+            issue(
+              "body",
+              "A Laravel attachment reads the file at run time, so its contents cannot be turned back into a path.",
+              "attach()",
+            ),
+          );
+          break;
+        }
+        parts.push({ name, value });
+        break;
+      }
+      case "asForm":
+        formPayload ??= { kind: "map", entries: [] };
+        break;
+      case "asJson":
+        jsonPayload ??= { kind: "map", entries: [] };
+        break;
+      case "withQueryParameters": {
+        const query = argument(call, 0);
+        if (url !== undefined) {
+          const withQuery = appendQuery(url, query);
+          if (withQuery === undefined) {
+            issues.push(
+              issue(
+                "url",
+                "Dynamic Laravel query cannot be resolved statically.",
+                "withQueryParameters()",
+              ),
+            );
+          } else url = withQuery;
+        }
+        break;
+      }
+      case "withoutRedirecting":
+        followRedirects = false;
+        break;
+      case "send": {
+        found = true;
+        method = asString(argument(call, 0))?.toUpperCase();
+        url = asString(argument(call, 1));
+        break;
+      }
+      default: {
+        if (!GUZZLE_METHODS.has(step)) break;
+        // `Http::post($url, $data)` and friends, where the verb names the
+        // method and the second argument is the payload.
+        found = true;
+        method = step.toUpperCase();
+        url = asString(argument(call, 0));
+        if (call.args.length > 1) {
+          const payload = argument(call, 1);
+          if (step === "get") {
+            const withQuery =
+              url === undefined ? undefined : appendQuery(url, payload);
+            if (withQuery !== undefined) url = withQuery;
+          } else if (formPayload !== undefined) {
+            formPayload = payload;
+          } else {
+            jsonPayload = payload;
+          }
+        }
+        break;
+      }
+    }
+  }
+
+  if (!found) {
+    throw new CodeParseError(
+      "No Laravel HTTP request was found. The chain has to end in a verb method or in send().",
+    );
+  }
+  if (method === undefined) {
+    issues.push(
+      issue(
+        "method",
+        "Dynamic Laravel method cannot be resolved statically.",
+        "send()",
+      ),
+    );
+  }
+  if (url === undefined) {
+    issues.push(
+      issue("url", "Dynamic Laravel URL cannot be resolved statically.", "url"),
+    );
+  }
+
+  let body: RequestBody | undefined;
+  if (parts.length > 0) {
+    body = multipartBody(parts);
+  } else if (jsonPayload !== undefined && jsonPayload.kind === "map") {
+    const encoded = toJson(jsonPayload);
+    if (encoded !== undefined) {
+      body = {
+        kind: "json",
+        value: encoded as never,
+        raw: JSON.stringify(encoded),
+      };
+      if (!headers.some((h) => h.name.toLowerCase() === "content-type")) {
+        headers.push({ name: "Content-Type", value: "application/json" });
+      }
+    }
+  } else if (formPayload !== undefined && formPayload.kind === "map") {
+    const pairs = asPairs(formPayload);
+    if (pairs !== undefined) {
+      body = {
+        kind: "form-urlencoded",
+        fields: pairs.map(({ name, value }) => ({ name, value })),
+        raw: pairs
+          .map(
+            ({ name, value }) =>
+              `${encodeURIComponent(name)}=${encodeURIComponent(value)}`,
+          )
+          .join("&"),
+      };
+      if (!headers.some((h) => h.name.toLowerCase() === "content-type")) {
+        headers.push({
+          name: "Content-Type",
+          value: "application/x-www-form-urlencoded",
+        });
+      }
+    }
+  } else if (bodyText !== undefined) {
+    const declared =
+      headers.find((header) => header.name.toLowerCase() === "content-type")
+        ?.value ?? bodyContentType;
+    body = classifyStringBody(bodyText, declared);
+  }
+
+  const normalized = normalizeHeaders(headers);
+  const effectiveAuth = auth ?? normalized.auth;
+  if (issues.length > 0) {
+    throw new DynamicExpressionError(issues, {
+      client: "laravel",
+      ...(method === undefined ? {} : { method }),
+      ...(url === undefined ? {} : { url }),
+      headers: normalized.headers,
+      cookies: normalized.cookies,
+      ...(effectiveAuth === undefined ? {} : { auth: effectiveAuth }),
+      ...(body === undefined ? {} : { body }),
+      followRedirects,
+    });
+  }
+  return {
+    client: "laravel",
+    request: createHttpRequest(url ?? "", {
+      method: method ?? "GET",
+      headers: normalized.headers,
+      cookies: normalized.cookies,
+      ...(effectiveAuth === undefined ? {} : { auth: effectiveAuth }),
+      ...(body === undefined ? {} : { body }),
+      followRedirects,
+    }),
+  };
+}
+
 export function parsePhpRequest(source: string): ReverseParseResult {
   const { calls, bindings } = readPhp(source);
 
-  // Guzzle is checked first: a file using it will not also configure the cURL
-  // extension, and its calls are unambiguous.
-  const guzzle = calls.find(
+  // Laravel is identified by its facade, which no other client here uses.
+  if (/\bHttp::/u.test(source)) return fromLaravel(calls, bindings);
+
+  // Guzzle and Symfony share a call shape, so the import decides between them.
+  const dialect = /Symfony\\Component\\HttpClient|HttpClient::create/u.test(
+    source,
+  )
+    ? SYMFONY_DIALECT
+    : GUZZLE_DIALECT;
+  const request = calls.find(
     (call) =>
       call.method !== undefined &&
       (call.method === "request" || GUZZLE_METHODS.has(call.method)) &&
@@ -500,9 +870,11 @@ export function parsePhpRequest(source: string): ReverseParseResult {
   );
   const options = curlOptions(calls, bindings);
   if (options.size > 0) return fromCurlExtension(options);
-  if (guzzle !== undefined) return fromGuzzle(guzzle, bindings);
+  if (request !== undefined) {
+    return fromOptionsClient(request, bindings, calls, dialect);
+  }
 
   throw new CodeParseError(
-    "No supported PHP request was found. Reverse conversion reads the cURL extension (curl_setopt / curl_setopt_array) and Guzzle.",
+    "No supported PHP request was found. Reverse conversion reads the cURL extension (curl_setopt / curl_setopt_array), Guzzle, Symfony HttpClient, and Laravel's HTTP client.",
   );
 }

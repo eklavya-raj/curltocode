@@ -18,6 +18,12 @@ export interface DialectTraits {
    * which is how PHP and Ruby treat single-quoted strings.
    */
   readonly literalStringQuotes?: readonly string[];
+  /**
+   * Quote characters that behave exactly like `"`, escapes included. Dart and
+   * Swift treat both quote styles the same way, unlike Ruby, where the single
+   * quote suppresses almost every escape.
+   */
+  readonly escapingStringQuotes?: readonly string[];
   /** Additional line-comment markers, such as PHP's `#`. */
   readonly lineComments?: readonly string[];
 }
@@ -139,6 +145,7 @@ export function tokenize(
   const identifierPrefixes = new Set(traits.identifierPrefixes ?? []);
   const rawQuotes = new Set(traits.rawStringQuotes ?? []);
   const literalQuotes = new Set(traits.literalStringQuotes ?? []);
+  const escapingQuotes = new Set(['"', ...(traits.escapingStringQuotes ?? [])]);
   const lineComments = ["//", ...(traits.lineComments ?? [])];
 
   let index = 0;
@@ -180,8 +187,8 @@ export function tokenize(
       continue;
     }
 
-    if (character === '"' || literalQuotes.has(character)) {
-      const literal = character !== '"';
+    if (escapingQuotes.has(character) || literalQuotes.has(character)) {
+      const literal = !escapingQuotes.has(character);
       let cursor = index + 1;
       let text = "";
       while (cursor < source.length) {

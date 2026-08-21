@@ -31,6 +31,10 @@ second line'`,
   -H 'X-Feature: beta'`,
   duplicateCookies: `curl 'https://api.example.com/v1/sessions' \
   -b 'session=first; session=second'`,
+  duplicateFields: `curl 'https://api.example.com/v1/imports' \
+  -F 'source=mobile' \
+  -F 'tag=alpha' \
+  -F 'tag=beta'`,
   multipartUpload: `curl 'https://uploads.example.com/v1/documents' \
   -F 'description=Quarterly report' \
   -F 'document=@/tmp/report.pdf;type=application/pdf'`,

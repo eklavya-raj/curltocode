@@ -435,6 +435,40 @@ function parseExpression(reader: Reader, source: string): PythonNode {
     const method = reader.next().value;
     const args = parseArguments(reader, source);
     const end = reader.peek(-1).end;
+    // `b"".join([...])` is how a multipart message is assembled by hand, so the
+    // literal parts are folded here. A part this reader cannot evaluate leaves
+    // the whole payload unresolved rather than being silently skipped.
+    if (
+      method === "join" &&
+      args.keyword.size === 0 &&
+      node.kind === "string"
+    ) {
+      const items = args.positional[0];
+      if (
+        args.positional.length === 1 &&
+        items !== undefined &&
+        (items.kind === "list" || items.kind === "tuple")
+      ) {
+        const pieces: string[] = [];
+        let foldable = true;
+        for (const item of items.items) {
+          if (item.kind === "string") {
+            pieces.push(item.value);
+            continue;
+          }
+          if (item.kind === "encoded" && item.value.kind === "string") {
+            pieces.push(item.value.value);
+            continue;
+          }
+          foldable = false;
+          break;
+        }
+        if (foldable) {
+          return { kind: "string", value: pieces.join(node.value) };
+        }
+      }
+      return { kind: "unresolved", source: source.slice(start, end) };
+    }
     if (method === "encode" && args.keyword.size === 0) {
       const encodingNode = args.positional[0];
       const encoding =

@@ -11,12 +11,15 @@ import type {
 import {
   REVERSE_CLIENT_LABELS,
   generateDetailed,
+  listRequests,
   parseCode,
   parseCurlDetailed,
-  requestToCurl,
+  requestToCurlDetailed,
+  splitCurlCommands,
   supportedReverseTargets,
   supportedTargets,
 } from "curltocode";
+import type { InterchangeEntry } from "curltocode";
 
 import RequestInspector from "./RequestInspector";
 import type { SourceLanguage } from "./TargetIcon";
@@ -41,9 +44,82 @@ interface ConversionState {
   readonly parserKey?: string;
   /** Install command reported by the generator, when the client needs one. */
   readonly dependency?: string;
+  /** Environment variables the generated cURL command expects. */
+  readonly variables?: readonly {
+    readonly name: string;
+    readonly value: string;
+  }[];
 }
 
 const MAX_INPUT_SIZE = 100_000;
+/**
+ * A share link carries the request in the URL fragment, which browsers never
+ * send to a server. Past this length the URL stops being usable in a chat
+ * message or an address bar, so it is refused rather than silently truncated.
+ */
+const MAX_SHARE_SIZE = 8000;
+
+/** Encode a string as base64url, which survives a URL fragment unescaped. */
+function encodeShare(value: string): string {
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCodePoint(byte);
+  return btoa(binary)
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replace(/=+$/u, "");
+}
+
+function decodeShare(value: string): string | undefined {
+  try {
+    const padded = value.replaceAll("-", "+").replaceAll("_", "/");
+    const binary = atob(padded);
+    const bytes = Uint8Array.from(
+      binary,
+      (character) => character.codePointAt(0) ?? 0,
+    );
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return undefined;
+  }
+}
+
+interface SharedState {
+  readonly mode: Mode;
+  readonly language: Language;
+  readonly client: Client;
+  readonly input: string;
+}
+
+/** Read a shared request out of the current URL fragment, if there is one. */
+function readShare(): SharedState | undefined {
+  if (typeof window === "undefined") return undefined;
+  const hash = window.location.hash;
+  if (!hash.startsWith("#s=")) return undefined;
+  const decoded = decodeShare(hash.slice(3));
+  if (decoded === undefined) return undefined;
+  try {
+    const value: unknown = JSON.parse(decoded);
+    if (typeof value !== "object" || value === null) return undefined;
+    const record = value as Record<string, unknown>;
+    const input = record["i"];
+    if (typeof input !== "string") return undefined;
+    const mode =
+      record["m"] === "code-to-curl" ? "code-to-curl" : "curl-to-code";
+    const language = record["l"];
+    const client = record["c"];
+    return {
+      mode,
+      input,
+      language: (typeof language === "string"
+        ? language
+        : "javascript") as Language,
+      client: (typeof client === "string" ? client : "fetch") as Client,
+    };
+  } catch {
+    return undefined;
+  }
+}
 const DEFAULT_CURL = `curl 'https://api.example.com/users?page=1' \\
   -X POST \\
   -H 'Content-Type: application/json' \\
@@ -58,6 +134,7 @@ const DEFAULT_CODE = `fetch("https://api.example.com/users", {
 const languageLabels: Record<Language, string> = {
   javascript: "JavaScript",
   typescript: "TypeScript",
+  nodejs: "Node.js",
   python: "Python",
   go: "Go",
   php: "PHP",
@@ -65,7 +142,33 @@ const languageLabels: Record<Language, string> = {
   csharp: "C#",
   ruby: "Ruby",
   rust: "Rust",
+  kotlin: "Kotlin",
+  swift: "Swift",
+  dart: "Dart",
+  objectivec: "Objective-C",
+  c: "C",
+  cpp: "C++",
+  clojure: "Clojure",
+  elixir: "Elixir",
+  perl: "Perl",
+  r: "R",
+  julia: "Julia",
+  lua: "Lua",
+  matlab: "MATLAB",
+  ocaml: "OCaml",
+  scala: "Scala",
+  cfml: "CFML",
+  nim: "Nim",
+  crystal: "Crystal",
+  powershell: "PowerShell",
   http: "HTTP",
+  httpie: "HTTPie",
+  wget: "Wget",
+  har: "HAR",
+  json: "JSON",
+  ansible: "Ansible",
+  postman: "Postman",
+  k6: "k6",
 };
 
 const clientLabels: Record<Client, string> = {
@@ -86,7 +189,45 @@ const clientLabels: Record<Client, string> = {
   faraday: "Faraday",
   reqwest: "reqwest",
   ureq: "ureq",
+  urllib3: "urllib3",
+  httpurlconnection: "HttpURLConnection",
+  httparty: "HTTParty",
+  restclient: "rest-client",
+  symfony: "HttpClient",
+  laravel: "HTTP client",
+  flurl: "Flurl",
+  got: "Got",
+  ky: "Ky",
+  superagent: "SuperAgent",
+  https: "node:https",
+  jquery: "jQuery",
+  xhr: "XMLHttpRequest",
+  ktor: "Ktor",
+  urlsession: "URLSession",
+  alamofire: "Alamofire",
+  http: "package:http",
+  dio: "Dio",
+  nsurlsession: "NSURLSession",
+  libcurl: "libcurl",
+  cpr: "cpr",
+  cljhttp: "clj-http",
+  req: "Req",
+  httpoison: "HTTPoison",
+  lwp: "LWP::UserAgent",
+  httr: "httr",
+  httr2: "httr2",
+  cohttp: "Cohttp",
+  sttp: "sttp",
+  cfhttp: "cfhttp",
   raw: "Raw request",
+  cli: "command line",
+  restmethod: "Invoke-RestMethod",
+  webrequest: "Invoke-WebRequest",
+  json: "1.2 archive",
+  request: "request document",
+  uri: "uri module",
+  collection: "collection v2.1",
+  script: "load test script",
 };
 
 /**
@@ -149,6 +290,23 @@ function isReverseClient(client: Client): client is ReverseClient {
   return supportedReverseTargets.some((target) => target.client === client);
 }
 
+/**
+ * A one-line label for a cURL command in a picker.
+ *
+ * The URL is what tells two commands apart at a glance; the flags are what the
+ * user is about to see converted anyway.
+ */
+function describeCommand(command: string): string {
+  try {
+    const request = parseCurlDetailed(command).request;
+    const url = new URL(request.url);
+    return `${request.method} ${url.host}${url.pathname}`;
+  } catch {
+    const condensed = command.replace(/\s+/gu, " ").trim();
+    return condensed.length > 60 ? `${condensed.slice(0, 57)}…` : condensed;
+  }
+}
+
 function defaultCodeForTarget(language: Language, client: Client): string {
   const request = parseCurlDetailed(DEFAULT_CURL).request;
   return generateDetailed(request, { language, client }).code;
@@ -202,6 +360,37 @@ export default function Converter({
   );
   const [sourceClient, setSourceClient] =
     useState<ReverseClient>(initialReverseClient);
+  // Which request to show when the input describes more than one: a script of
+  // several cURL commands, or a HAR or Postman document. The choice is keyed to
+  // the input it was made against, so a new input starts at the first request
+  // without an effect having to reset it.
+  const [selection, setSelection] = useState({ key: "", index: 0 });
+  const [entries, setEntries] = useState<readonly InterchangeEntry[]>([]);
+  // Off by default: a command you are about to run needs its values inline.
+  const [liftSecrets, setLiftSecrets] = useState(false);
+
+  /**
+   * The cURL commands in the input. A scratch file or a browser's "copy all as
+   * cURL" holds several, and splitting has to respect quoting, so the shared
+   * splitter is used rather than a newline split.
+   */
+  const commands = useMemo(
+    () =>
+      mode === "curl-to-code" &&
+      input.length > 0 &&
+      input.length <= MAX_INPUT_SIZE
+        ? splitCurlCommands(input)
+        : [],
+    [input, mode],
+  );
+  const selected = selection.key === input ? selection.index : 0;
+  const setSelected = (index: number): void => {
+    setSelection({ key: input, index });
+  };
+  const commandIndex =
+    commands.length > 1 ? Math.min(selected, commands.length - 1) : 0;
+  const activeInput =
+    commands.length > 1 ? (commands[commandIndex] ?? input) : input;
 
   const availableClients = useMemo(
     () => clientsForLanguage(language),
@@ -245,7 +434,56 @@ export default function Converter({
 
   useEffect(() => {
     rootRef.current?.setAttribute("data-ready", "true");
+    const shared = readShare();
+    if (shared === undefined) return;
+    // Applied after the hydration render rather than during it: the server had
+    // no fragment to read, so changing state synchronously here would make the
+    // first client render disagree with the markup it is hydrating.
+    queueMicrotask(() => {
+      setMode(shared.mode);
+      setInput(shared.input);
+      if (shared.mode === "curl-to-code") {
+        setLanguage(shared.language);
+        const clients = clientsForLanguage(shared.language);
+        setClient(
+          clients.includes(shared.client)
+            ? shared.client
+            : (clients[0] ?? "fetch"),
+        );
+      }
+      setFeedback("Loaded a shared request from this link.");
+    });
   }, []);
+
+  /**
+   * Requests inside a HAR archive or a Postman collection.
+   *
+   * A DevTools export routinely holds hundreds of entries, and converting only
+   * the first would quietly answer a question nobody asked. The list is read
+   * here so the picker can offer all of them.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      if (
+        mode !== "code-to-curl" ||
+        input.length === 0 ||
+        input.length > MAX_INPUT_SIZE
+      ) {
+        if (!cancelled) setEntries([]);
+        return;
+      }
+      try {
+        const found = await listRequests(input);
+        if (!cancelled) setEntries(found);
+      } catch {
+        if (!cancelled) setEntries([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [input, mode]);
 
   // Only the input pane is resizable; mirroring its height onto the read-only
   // output keeps the two columns aligned and cannot feed back into itself.
@@ -272,7 +510,7 @@ export default function Converter({
   }, [copied]);
 
   const forwardState = useMemo<ConversionState>(() => {
-    if (mode !== "curl-to-code" || input.length === 0) {
+    if (mode !== "curl-to-code" || activeInput.length === 0) {
       return {
         source: input,
         output: "",
@@ -291,7 +529,7 @@ export default function Converter({
       };
     }
     try {
-      const parsed = parseCurlDetailed(input);
+      const parsed = parseCurlDetailed(activeInput);
       const generated = generateDetailed(parsed.request, { language, client });
       return {
         source: input,
@@ -313,7 +551,7 @@ export default function Converter({
         status: "",
       };
     }
-  }, [client, input, language, mode]);
+  }, [activeInput, client, input, language, mode]);
 
   useEffect(() => {
     if (mode !== "code-to-curl") return;
@@ -365,7 +603,15 @@ export default function Converter({
           source: input,
           parserKey: reverseParserKey,
           request: parsed.request,
-          output: requestToCurl(parsed.request),
+          ...(() => {
+            const generated = requestToCurlDetailed(parsed.request, {
+              secrets: liftSecrets ? "environment" : "inline",
+            });
+            return {
+              output: generated.code,
+              variables: generated.variables,
+            };
+          })(),
           error: "",
           warning: "",
           status:
@@ -390,6 +636,7 @@ export default function Converter({
     };
   }, [
     input,
+    liftSecrets,
     mode,
     reverseParserKey,
     selectedReverseTarget,
@@ -397,20 +644,40 @@ export default function Converter({
     sourceLanguage,
   ]);
 
+  const entryIndex =
+    entries.length > 1 ? Math.min(selected, entries.length - 1) : 0;
+  const chosenEntry = entries.length > 1 ? entries[entryIndex] : undefined;
+  const chosenCurl =
+    chosenEntry === undefined
+      ? undefined
+      : requestToCurlDetailed(chosenEntry.request, {
+          secrets: liftSecrets ? "environment" : "inline",
+        });
+
   const conversion =
     mode === "curl-to-code"
       ? forwardState
-      : reverseState.source === input &&
-          reverseState.parserKey === reverseParserKey
-        ? reverseState
-        : {
+      : chosenEntry !== undefined && chosenCurl !== undefined
+        ? {
             source: input,
-            output: "",
+            request: chosenEntry.request,
+            output: chosenCurl.code,
+            variables: chosenCurl.variables,
             error: "",
             warning: "",
-            status: "Loading the local AST parser…",
-          };
-  const { output, request, error, warning } = conversion;
+            status: `Showing request ${entryIndex + 1} of ${entries.length}.`,
+          }
+        : reverseState.source === input &&
+            reverseState.parserKey === reverseParserKey
+          ? reverseState
+          : {
+              source: input,
+              output: "",
+              error: "",
+              warning: "",
+              status: "Loading the local AST parser…",
+            };
+  const { output, request, error, warning, variables } = conversion;
   const status = feedback || conversion.status;
   const dependency =
     mode === "curl-to-code" ? conversion.dependency : undefined;
@@ -449,6 +716,39 @@ export default function Converter({
     const firstClient = reverseClientsForLanguage(nextLanguage)[0];
     if (firstClient !== undefined) setSourceClient(firstClient);
   };
+
+  /**
+   * Copy a link that carries the request in the URL fragment.
+   *
+   * The fragment is the one part of a URL a browser never sends to a server, so
+   * a shared command stays between the people who have the link. Nothing is
+   * uploaded and no short link is minted.
+   */
+  const copyShareLink = useCallback(async (): Promise<void> => {
+    const payload = JSON.stringify({
+      m: mode,
+      l: language,
+      c: client,
+      i: input,
+    });
+    const encoded = encodeShare(payload);
+    if (encoded.length > MAX_SHARE_SIZE) {
+      setFeedback(
+        "This request is too large to put in a link. Copy the command instead.",
+      );
+      return;
+    }
+    const url = `${window.location.origin}${window.location.pathname}#s=${encoded}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setFeedback(
+        "Copied a share link. The request travels in the URL fragment, which is never sent to a server.",
+      );
+    } catch {
+      window.location.hash = `s=${encoded}`;
+      setFeedback("Clipboard access failed. The link is in your address bar.");
+    }
+  }, [client, input, language, mode]);
 
   const copyOutput = useCallback(async (): Promise<void> => {
     if (output.length === 0) return;
@@ -495,6 +795,26 @@ export default function Converter({
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [copyOutput]);
+
+  /**
+   * One control for the two ways an input can hold several requests. A script
+   * of cURL commands and a HAR archive raise the same question — which one? —
+   * so they are answered the same way rather than with two different widgets.
+   */
+  const picker =
+    commands.length > 1
+      ? {
+          label: `${commands.length} cURL commands found`,
+          index: commandIndex,
+          options: commands.map(describeCommand),
+        }
+      : entries.length > 1
+        ? {
+            label: `${entries.length} requests in this document`,
+            index: entryIndex,
+            options: entries.map((entry) => entry.name),
+          }
+        : undefined;
 
   return (
     <section
@@ -584,6 +904,15 @@ export default function Converter({
               <button
                 className="action-button"
                 type="button"
+                title="Copy a link containing this request"
+                onClick={() => void copyShareLink()}
+                disabled={input.length === 0}
+              >
+                Share
+              </button>
+              <button
+                className="action-button"
+                type="button"
                 onClick={() => void pasteInput()}
               >
                 Paste
@@ -602,6 +931,22 @@ export default function Converter({
               </button>
             </div>
           </div>
+          {picker !== undefined && (
+            <div className="request-picker">
+              <label htmlFor="converter-request">{picker.label}</label>
+              <select
+                id="converter-request"
+                value={picker.index}
+                onChange={(event) => setSelected(Number(event.target.value))}
+              >
+                {picker.options.map((option, index) => (
+                  <option key={`${index}-${option}`} value={index}>
+                    {index + 1}. {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <label className="sr-only" htmlFor="converter-input">
             {mode === "curl-to-code"
               ? "cURL command"
@@ -628,16 +973,28 @@ export default function Converter({
             <div className="pane-title">
               {mode === "curl-to-code" ? "Generated code" : "Generated cURL"}
             </div>
-            <button
-              className="action-button"
-              type="button"
-              data-copied={copied ? "true" : undefined}
-              title="Copy output (Ctrl+Enter)"
-              onClick={() => void copyOutput()}
-              disabled={output.length === 0}
-            >
-              {copied ? "Copied" : "Copy"}
-            </button>
+            <div className="pane-actions">
+              {mode === "code-to-curl" && (
+                <label className="secrets-toggle">
+                  <input
+                    type="checkbox"
+                    checked={liftSecrets}
+                    onChange={(event) => setLiftSecrets(event.target.checked)}
+                  />
+                  Secrets as variables
+                </label>
+              )}
+              <button
+                className="action-button"
+                type="button"
+                data-copied={copied ? "true" : undefined}
+                title="Copy output (Ctrl+Enter)"
+                onClick={() => void copyOutput()}
+                disabled={output.length === 0}
+              >
+                {copied ? "Copied" : "Copy"}
+              </button>
+            </div>
           </div>
           <label className="sr-only" htmlFor="converter-output">
             Converted output
@@ -655,6 +1012,23 @@ export default function Converter({
             <p className="dependency-note">
               Install dependency: <code>{dependency}</code>
             </p>
+          )}
+          {variables !== undefined && variables.length > 0 && (
+            <div className="dependency-note">
+              <p>
+                Set these before running the command. They are shown here and
+                never sent anywhere.
+              </p>
+              <ul className="variable-list">
+                {variables.map((variable) => (
+                  <li key={variable.name}>
+                    <code>
+                      export {variable.name}={JSON.stringify(variable.value)}
+                    </code>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
       </div>
