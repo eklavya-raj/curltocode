@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
 const productionBaseUrl = "http://127.0.0.1:4324";
-const indexablePages = [
+const indexablePages: readonly (readonly [string, string])[] = [
   ["/", "cURL Converter"],
   ["/converters", "cURL and code converters"],
   ["/about", "About CurlToCode"],
@@ -10,53 +10,118 @@ const indexablePages = [
   ["/cookies", "Cookie Policy"],
   ["/privacy", "Privacy Policy"],
   ["/terms", "Terms of Service"],
-  ["/curl-to-csharp", "Convert cURL to C#"],
-  ["/curl-to-csharp/httpclient", "Convert cURL to C# HttpClient"],
-  ["/curl-to-csharp/restsharp", "Convert cURL to C# RestSharp"],
-  ["/curl-to-go", "Convert cURL to Go"],
-  ["/curl-to-go/nethttp", "Convert cURL to Go net/http"],
-  ["/curl-to-go/resty", "Convert cURL to Go Resty"],
-  ["/curl-to-java", "Convert cURL to Java"],
-  ["/curl-to-java/apache-httpclient", "Convert cURL to Apache HttpClient 5"],
-  ["/curl-to-java/httpclient", "Convert cURL to Java HttpClient"],
-  ["/curl-to-java/okhttp", "Convert cURL to Java OkHttp"],
-  ["/curl-to-javascript", "Convert cURL to JavaScript"],
-  ["/curl-to-javascript/axios", "Convert cURL to Axios"],
-  ["/curl-to-javascript/fetch", "Convert cURL to Fetch"],
-  ["/curl-to-javascript/undici", "Convert cURL to JavaScript Undici"],
-  ["/curl-to-php", "Convert cURL to PHP"],
-  ["/curl-to-php/curl", "Convert cURL to PHP cURL"],
-  ["/curl-to-php/guzzle", "Convert cURL to PHP Guzzle"],
   ["/curl-to-python", "Convert cURL to Python"],
-  ["/curl-to-python/aiohttp", "Convert cURL to Python aiohttp"],
-  ["/curl-to-python/httpx", "Convert cURL to Python HTTPX"],
   ["/curl-to-python/requests", "Convert cURL to Python Requests"],
+  ["/curl-to-python/httpx", "Convert cURL to Python HTTPX"],
+  ["/curl-to-python/aiohttp", "Convert cURL to Python aiohttp"],
+  ["/curl-to-python/httpclient", "Convert cURL to Python http.client"],
+  ["/curl-to-python/urllib3", "Convert cURL to Python urllib3"],
+  ["/curl-to-javascript", "Convert cURL to JavaScript"],
+  ["/curl-to-javascript/fetch", "Convert cURL to Fetch"],
+  ["/curl-to-javascript/axios", "Convert cURL to Axios"],
+  ["/curl-to-javascript/undici", "Convert cURL to JavaScript Undici"],
+  ["/curl-to-javascript/jquery", "Convert cURL to jQuery AJAX"],
+  ["/curl-to-javascript/xhr", "Convert cURL to XMLHttpRequest"],
+  ["/curl-to-typescript", "Convert cURL to TypeScript"],
+  ["/curl-to-typescript/fetch", "Convert cURL to TypeScript Fetch"],
+  ["/curl-to-typescript/axios", "Convert cURL to TypeScript Axios"],
+  ["/curl-to-typescript/undici", "Convert cURL to TypeScript Undici"],
+  ["/curl-to-nodejs", "Convert cURL to Node.js"],
+  ["/curl-to-java", "Convert cURL to Java"],
+  ["/curl-to-java/httpclient", "Convert cURL to Java HttpClient"],
+  ["/curl-to-kotlin", "Convert cURL to Kotlin"],
+  ["/curl-to-java/okhttp", "Convert cURL to Java OkHttp"],
+  ["/curl-to-swift", "Convert cURL to Swift"],
+  ["/curl-to-dart", "Convert cURL to Dart"],
+  ["/curl-to-java/apache-httpclient", "Convert cURL to Apache HttpClient 5"],
+  ["/curl-to-objectivec", "Convert cURL to Objective-C"],
+  ["/curl-to-java/httpurlconnection", "Convert cURL to Java HttpURLConnection"],
+  ["/curl-to-go", "Convert cURL to Go"],
+  ["/curl-to-go/resty", "Convert cURL to Go Resty"],
+  ["/curl-to-go/nethttp", "Convert cURL to Go net/http"],
+  ["/curl-to-php", "Convert cURL to PHP"],
+  ["/curl-to-php/guzzle", "Convert cURL to PHP Guzzle"],
+  ["/curl-to-php/curl", "Convert cURL to PHP cURL"],
+  ["/curl-to-php/symfony", "Convert cURL to Symfony HttpClient"],
+  ["/curl-to-php/laravel", "Convert cURL to Laravel HTTP Client"],
   ["/curl-to-ruby", "Convert cURL to Ruby"],
   ["/curl-to-ruby/faraday", "Convert cURL to Ruby Faraday"],
   ["/curl-to-ruby/nethttp", "Convert cURL to Ruby Net::HTTP"],
+  ["/curl-to-ruby/httparty", "Convert cURL to Ruby HTTParty"],
+  ["/curl-to-ruby/restclient", "Convert cURL to Ruby rest-client"],
   ["/curl-to-rust", "Convert cURL to Rust"],
-  ["/curl-to-rust/reqwest", "Convert cURL to Rust reqwest"],
   ["/curl-to-rust/ureq", "Convert cURL to Rust ureq"],
+  ["/curl-to-rust/reqwest", "Convert cURL to Rust reqwest"],
+  ["/curl-to-csharp", "Convert cURL to C#"],
+  ["/curl-to-csharp/restsharp", "Convert cURL to C# RestSharp"],
+  ["/curl-to-csharp/httpclient", "Convert cURL to C# HttpClient"],
+  ["/curl-to-csharp/flurl", "Convert cURL to C# Flurl.Http"],
   ["/curl-to-http", "Convert cURL to a raw HTTP request"],
-  ["/curl-to-typescript", "Convert cURL to TypeScript"],
-  ["/curl-to-typescript/axios", "Convert cURL to TypeScript Axios"],
-  ["/curl-to-typescript/fetch", "Convert cURL to TypeScript Fetch"],
-  ["/curl-to-typescript/undici", "Convert cURL to TypeScript Undici"],
+  ["/curl-to-c", "Convert cURL to C"],
+  ["/curl-to-cpp", "Convert cURL to C++"],
+  ["/curl-to-clojure", "Convert cURL to Clojure"],
+  ["/curl-to-elixir", "Convert cURL to Elixir"],
+  ["/curl-to-perl", "Convert cURL to Perl"],
+  ["/curl-to-r", "Convert cURL to R"],
+  ["/curl-to-julia", "Convert cURL to Julia"],
+  ["/curl-to-lua", "Convert cURL to Lua"],
+  ["/curl-to-matlab", "Convert cURL to MATLAB"],
+  ["/curl-to-ocaml", "Convert cURL to OCaml"],
+  ["/curl-to-scala", "Convert cURL to Scala"],
+  ["/curl-to-cfml", "Convert cURL to CFML"],
+  ["/curl-to-nim", "Convert cURL to Nim"],
+  ["/curl-to-crystal", "Convert cURL to Crystal"],
+  ["/curl-to-powershell", "Convert cURL to PowerShell"],
+  ["/curl-to-httpie", "Convert cURL to HTTPie"],
+  ["/curl-to-wget", "Convert cURL to Wget"],
+  ["/curl-to-har", "Convert cURL to HAR"],
+  ["/curl-to-json", "Convert cURL to JSON"],
+  ["/curl-to-ansible", "Convert cURL to Ansible"],
+  ["/curl-to-postman", "Convert cURL to Postman"],
+  ["/curl-to-k6", "Convert cURL to k6"],
+  ["/curl-to-nodejs/fetch", "Convert cURL to Node.js Fetch"],
+  ["/curl-to-nodejs/axios", "Convert cURL to Node.js Axios"],
+  ["/curl-to-nodejs/got", "Convert cURL to Node.js Got"],
+  ["/curl-to-nodejs/ky", "Convert cURL to Node.js Ky"],
+  ["/curl-to-nodejs/superagent", "Convert cURL to Node.js SuperAgent"],
+  ["/curl-to-nodejs/https", "Convert cURL to Node.js HTTPS"],
+  ["/curl-to-kotlin/okhttp", "Convert cURL to Kotlin OkHttp"],
+  ["/curl-to-kotlin/ktor", "Convert cURL to Kotlin Ktor"],
+  ["/curl-to-swift/urlsession", "Convert cURL to Swift URLSession"],
+  ["/curl-to-swift/alamofire", "Convert cURL to Swift Alamofire"],
+  ["/curl-to-dart/http", "Convert cURL to Dart package:http"],
+  ["/curl-to-dart/dio", "Convert cURL to Dart Dio"],
+  ["/curl-to-elixir/req", "Convert cURL to Elixir Req"],
+  ["/curl-to-elixir/httpoison", "Convert cURL to Elixir HTTPoison"],
+  ["/curl-to-r/httr2", "Convert cURL to R httr2"],
+  ["/curl-to-r/httr", "Convert cURL to R httr"],
+  ["/curl-to-powershell/restmethod", "Convert cURL to Invoke-RestMethod"],
+  ["/curl-to-powershell/webrequest", "Convert cURL to Invoke-WebRequest"],
   ["/javascript-to-curl", "Convert JavaScript to cURL"],
+  ["/javascript-to-curl/fetch", "Convert JavaScript Fetch to cURL"],
   ["/javascript-to-curl/axios", "Convert JavaScript Axios to cURL"],
   ["/javascript-to-curl/undici", "Convert Node.js Undici to cURL"],
-  ["/javascript-to-curl/fetch", "Convert JavaScript Fetch to cURL"],
+  ["/javascript-to-curl/jquery", "Convert jQuery Ajax to a cURL command"],
+  ["/javascript-to-curl/xhr", "Convert XMLHttpRequest to a cURL command"],
+  ["/nodejs-to-curl", "Convert Node.js to cURL"],
   ["/typescript-to-curl", "Convert TypeScript to cURL"],
+  ["/typescript-to-curl/fetch", "Convert TypeScript Fetch to cURL"],
   ["/typescript-to-curl/axios", "Convert TypeScript Axios to cURL"],
   ["/typescript-to-curl/undici", "Convert TypeScript Undici to cURL"],
-  ["/typescript-to-curl/fetch", "Convert TypeScript Fetch to cURL"],
   ["/python-to-curl", "Convert Python to cURL"],
-  ["/python-to-curl/aiohttp", "Convert Python aiohttp to cURL"],
-  ["/python-to-curl/httpx", "Convert Python HTTPX to cURL"],
   ["/python-to-curl/requests", "Convert Python Requests to cURL"],
+  ["/python-to-curl/httpx", "Convert Python HTTPX to cURL"],
+  ["/python-to-curl/aiohttp", "Convert Python aiohttp to cURL"],
+  [
+    "/python-to-curl/httpclient",
+    "Convert Python http.client to a cURL command",
+  ],
+  ["/python-to-curl/urllib3", "Convert urllib3 to a cURL command"],
   ["/php-to-curl", "Convert PHP to cURL"],
   ["/php-to-curl/curl", "Convert PHP cURL to a cURL command"],
   ["/php-to-curl/guzzle", "Convert Guzzle to a cURL command"],
+  ["/php-to-curl/symfony", "Convert Symfony HttpClient to a cURL command"],
+  ["/php-to-curl/laravel", "Convert Laravel HTTP to a cURL command"],
   ["/go-to-curl", "Convert Go to cURL"],
   ["/go-to-curl/nethttp", "Convert Go net/http to a cURL command"],
   ["/go-to-curl/resty", "Convert Go Resty to a cURL command"],
@@ -64,16 +129,46 @@ const indexablePages = [
   ["/java-to-curl/httpclient", "Convert Java HttpClient to a cURL command"],
   ["/java-to-curl/okhttp", "Convert Java OkHttp to a cURL command"],
   ["/java-to-curl/apache", "Convert Apache HttpClient to a cURL command"],
+  [
+    "/java-to-curl/httpurlconnection",
+    "Convert HttpURLConnection to a cURL command",
+  ],
+  ["/kotlin-to-curl", "Convert Kotlin to cURL"],
   ["/csharp-to-curl", "Convert C# to cURL"],
   ["/csharp-to-curl/httpclient", "Convert C# HttpClient to a cURL command"],
   ["/csharp-to-curl/restsharp", "Convert C# RestSharp to a cURL command"],
+  ["/csharp-to-curl/flurl", "Convert Flurl to a cURL command"],
   ["/ruby-to-curl", "Convert Ruby to cURL"],
   ["/ruby-to-curl/nethttp", "Convert Ruby Net::HTTP to a cURL command"],
   ["/ruby-to-curl/faraday", "Convert Ruby Faraday to a cURL command"],
+  ["/ruby-to-curl/httparty", "Convert HTTParty to a cURL command"],
+  ["/ruby-to-curl/restclient", "Convert rest-client to a cURL command"],
   ["/rust-to-curl", "Convert Rust to cURL"],
   ["/rust-to-curl/reqwest", "Convert Rust reqwest to a cURL command"],
   ["/rust-to-curl/ureq", "Convert Rust ureq to a cURL command"],
+  ["/swift-to-curl", "Convert Swift to cURL"],
+  ["/dart-to-curl", "Convert Dart to cURL"],
   ["/http-to-curl", "Convert a raw HTTP request to cURL"],
+  ["/httpie-to-curl", "Convert HTTPie to cURL"],
+  ["/wget-to-curl", "Convert Wget to cURL"],
+  ["/har-to-curl", "Convert HAR to cURL"],
+  ["/postman-to-curl", "Convert Postman to cURL"],
+  ["/json-to-curl", "Convert JSON to cURL"],
+  ["/powershell-to-curl", "Convert PowerShell to cURL"],
+  ["/powershell-to-curl/restmethod", "Convert Invoke-RestMethod to cURL"],
+  ["/powershell-to-curl/webrequest", "Convert Invoke-WebRequest to cURL"],
+  ["/nodejs-to-curl/fetch", "Convert Node.js fetch to a cURL command"],
+  ["/nodejs-to-curl/axios", "Convert Node.js Axios to a cURL command"],
+  ["/nodejs-to-curl/got", "Convert Got to a cURL command"],
+  ["/nodejs-to-curl/ky", "Convert Ky to a cURL command"],
+  ["/nodejs-to-curl/superagent", "Convert SuperAgent to a cURL command"],
+  ["/nodejs-to-curl/https", "Convert node:https to a cURL command"],
+  ["/kotlin-to-curl/okhttp", "Convert Kotlin OkHttp to a cURL command"],
+  ["/kotlin-to-curl/ktor", "Convert Ktor to a cURL command"],
+  ["/swift-to-curl/urlsession", "Convert URLSession to a cURL command"],
+  ["/swift-to-curl/alamofire", "Convert Alamofire to a cURL command"],
+  ["/dart-to-curl/http", "Convert package:http to a cURL command"],
+  ["/dart-to-curl/dio", "Convert Dio to a cURL command"],
 ] as const;
 
 async function openConverter(page: Page): Promise<void> {
@@ -292,6 +387,75 @@ test("keeps the converter usable without horizontal overflow on mobile", async (
   expect(hasOverflow).toBe(false);
 });
 
+test("picks one request out of a multi-command paste and shares it", async ({
+  page,
+}) => {
+  await openConverter(page);
+  const input = page.getByLabel("cURL command");
+  await input.fill(
+    "curl https://api.example.com/v1/first\ncurl -X POST https://api.example.com/v1/second",
+  );
+
+  const picker = page.getByLabel("2 cURL commands found");
+  await expect(picker).toBeVisible();
+  await expect(page.getByLabel("Converted output")).toHaveValue(/\/v1\/first/u);
+  await picker.selectOption("1");
+  await expect(page.getByLabel("Converted output")).toHaveValue(
+    /\/v1\/second/u,
+  );
+
+  // The share link has to keep the request in the fragment: a query string
+  // would be sent to the server on the next request.
+  await page.evaluate(() => {
+    const shared: string[] = [];
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: (value: string) => {
+          shared.push(value);
+          return Promise.resolve();
+        },
+      },
+    });
+    (window as unknown as { __shared: string[] }).__shared = shared;
+  });
+  await page.getByRole("button", { name: "Share" }).click();
+  const link = await page.evaluate(
+    () => (window as unknown as { __shared: string[] }).__shared[0] ?? "",
+  );
+  expect(link).toContain("#s=");
+  expect(new URL(link).search).toBe("");
+
+  // A same-document fragment change does not re-run the island, so the link is
+  // opened the way a recipient would open it: as a fresh load.
+  await page.goto(link);
+  await page.reload();
+  await page
+    .locator('[aria-label="cURL and code converter"][data-ready="true"]')
+    .waitFor();
+  expect(page.url()).toContain("#s=");
+  await expect(page.locator("#converter-input")).toHaveValue(/\/v1\/first/u);
+  await expect(page.locator("#converter-status")).toContainText(
+    "Loaded a shared request",
+  );
+});
+
+test("lifts secrets into shell variables on request", async ({ page }) => {
+  await openConverter(page);
+  await page.getByRole("button", { name: "Code → cURL" }).click();
+  await page
+    .getByLabel("Request code in any supported language")
+    .fill(
+      'fetch("https://api.example.com/v1/me", { headers: { "X-Api-Key": "secret-key" } });',
+    );
+  const output = page.getByLabel("Converted output");
+  await expect(output).toHaveValue(/secret-key/u);
+  await page.getByRole("checkbox", { name: /Secrets as/u }).check();
+  await expect(output).toHaveValue(/\$X_API_KEY/u);
+  await expect(output).not.toHaveValue(/secret-key/u);
+  await expect(page.getByText(/export X_API_KEY=/u)).toBeVisible();
+});
+
 test("keeps converter groups and cards visually separated", async ({
   page,
 }) => {
@@ -301,7 +465,9 @@ test("keeps converter groups and cards visually separated", async ({
   // converter cannot leave these counts describing an older site.
   const hubs = indexablePages
     .map(([path]) => path)
-    .filter((path) => /^\/(?:curl-to-[a-z]+|[a-z]+-to-curl)$/u.test(path));
+    .filter((path) =>
+      /^\/(?:curl-to-[a-z0-9]+|[a-z0-9]+-to-curl)$/u.test(path),
+    );
   const forwardHubs = hubs.filter((path) => path.startsWith("/curl-to-"));
 
   const groups = page.locator(".converter-group");
@@ -588,6 +754,9 @@ test("every indexable page renders canonical metadata and structured data", asyn
   page,
   request,
 }) => {
+  // This deliberately visits every generated route. The timeout scales above
+  // Playwright's single-flow default now that the registry has 70+ targets.
+  test.setTimeout(180_000);
   const titles = new Set<string>();
   const descriptions = new Set<string>();
   const incomingInternalLinks = new Map(
@@ -608,12 +777,12 @@ test("every indexable page renders canonical metadata and structured data", asyn
     descriptions.add(description);
     if (path === "/") {
       expect(title).toBe(
-        "cURL Converter – Convert cURL to Python & JavaScript | CurlToCode",
+        "cURL Converter – 70+ Languages & Clients | CurlToCode",
       );
       await expect(
         page.getByRole("heading", {
           level: 2,
-          name: "Convert cURL to Python, JavaScript, and more",
+          name: "Convert cURL to Python, JavaScript, Node.js, and more",
         }),
       ).toBeVisible();
     }

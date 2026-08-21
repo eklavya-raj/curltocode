@@ -1,5 +1,6 @@
 ---
 import { getCollection } from "astro:content";
+import { supportedReverseTargets, supportedTargets } from "curltocode";
 
 import Converter from "../components/Converter";
 import FaqList from "../components/FaqList.astro";
@@ -12,10 +13,11 @@ const hubs = converters
   .filter((entry) => entry.data.parent === undefined)
   .sort((a, b) => a.data.order - b.data.order);
 
-const title =
-  "cURL Converter – Convert cURL to Python & JavaScript | CurlToCode";
+const title = "cURL Converter – 70+ Languages & Clients | CurlToCode";
 const description =
-  "Free online cURL converter. Convert cURL to Python, JavaScript, Go, Rust, Java, C#, PHP, and Ruby — or convert code back to cURL. Runs entirely in your browser.";
+  "Convert cURL across 70+ language, library, CLI, and request-format targets, or parse supported code back to cURL. Everything runs locally in your browser.";
+const forwardTargetCount = supportedTargets.length;
+const reverseTargetCount = supportedReverseTargets.length;
 
 const faqs: readonly FaqEntry[] = [
   {
@@ -30,13 +32,11 @@ const faqs: readonly FaqEntry[] = [
   },
   {
     question: "Which languages and HTTP clients are supported?",
-    answer:
-      "JavaScript and TypeScript support Fetch, Axios, and Undici; Python supports Requests, HTTPX, and aiohttp; Go supports net/http and Resty; Java supports JDK, OkHttp, and Apache clients; C#, PHP, Ruby, and Rust each offer standard and popular library targets.",
+    answer: `${forwardTargetCount} tested targets cover browser and Node.js JavaScript, Python, JVM and mobile languages, systems languages, scripting and data tools, PowerShell, CLIs, automation, load testing, and interchange formats. The target selector is generated from the same registry as the public API.`,
   },
   {
     question: "Can it convert code back into a cURL command?",
-    answer:
-      "Yes. Every client the converter can generate can also be read back, covering JavaScript, TypeScript, Python, Go, Java, C#, PHP, Ruby, and Rust. The parser reads your code as a syntax tree rather than running it, so a value produced at runtime is reported as an unresolved expression instead of being guessed.",
+    answer: `Yes. ${reverseTargetCount} registered reverse targets cover supported JavaScript, TypeScript, Python, PHP, Go, Java, C#, Ruby, Rust, PowerShell, HTTPie, Wget, HAR, Postman, JSON, and raw HTTP. Parsers are static and never execute pasted code.`,
   },
 ];
 ---
@@ -47,8 +47,8 @@ const faqs: readonly FaqEntry[] = [
       <span class="eyebrow">Private HTTP request conversion</span>
       <h1>cURL Converter</h1>
       <p class="lede">
-        Convert cURL to Python, JavaScript, Go, Rust, Java, C#, PHP, and Ruby —
-        or convert code back to cURL.
+        Convert cURL across {forwardTargetCount} tested language, library, CLI, and
+        request-format targets — or parse supported code back to cURL.
       </p>
       <p class="privacy-note">
         <span class="privacy-dot" aria-hidden="true"></span> 100% client-side. Your
@@ -97,7 +97,7 @@ const faqs: readonly FaqEntry[] = [
 
       <RelatedConverters
         entries={hubs}
-        title="Convert cURL to Python, JavaScript, and more"
+        title="Convert cURL to Python, JavaScript, Node.js, and more"
       />
       <FaqList faqs={faqs} />
     </div>

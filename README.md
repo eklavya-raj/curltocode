@@ -1,19 +1,27 @@
 # CurlToCode
 
-CurlToCode is a local-first developer tool for converting cURL to code and statically resolvable JavaScript or TypeScript requests back to cURL. The website is designed for `https://curltocode.com`; the `curltocode` workspace package is the future npm API.
+CurlToCode is a local-first developer tool for converting cURL across 71 tested language, library, CLI, automation, and interchange-format targets, and reading 52 of them back into cURL with static parsers. The website is designed for `https://curltocode.com`; the `curltocode` workspace package is the future npm API.
 
 ## Supported conversions
 
-- cURL to JavaScript Fetch, Axios, and Undici
-- cURL to TypeScript Fetch, Axios, and Undici
-- cURL to Python Requests, HTTPX, and aiohttp
+- Browser JavaScript and TypeScript with Fetch, Axios, Undici, jQuery, and XMLHttpRequest
+- Node.js with Fetch, Axios, Got, Ky, SuperAgent, and core HTTP/HTTPS
+- Python Requests, HTTPX, aiohttp, http.client, and urllib3
 - cURL to Go net/http and Resty v3
-- cURL to PHP's cURL extension and Guzzle
-- cURL to Java JDK HttpClient, OkHttp, and Apache HttpClient 5
-- cURL to C# HttpClient and RestSharp
-- cURL to Ruby Net::HTTP and Faraday
+- PHP cURL, Guzzle, Symfony HttpClient, and Laravel HTTP
+- Java HttpClient, OkHttp, Apache HttpClient 5, and HttpURLConnection
+- C# HttpClient, RestSharp, and Flurl.Http
+- Ruby Net::HTTP, Faraday, HTTParty, and rest-client
 - cURL to Rust reqwest and ureq
-- JavaScript/TypeScript Fetch and Axios to POSIX-shell cURL
+- Kotlin, Swift, Dart, Objective-C, C, C++, Clojure, Elixir, Perl, R, Julia, Lua, MATLAB, OCaml, Scala, CFML, Nim, and Crystal
+- PowerShell, HTTPie, Wget, raw HTTP, HAR, normalized JSON, Ansible, Postman, and k6
+- Static reverse parsing for 52 targets across 20 languages and formats: JavaScript and TypeScript, Node.js, Python, PHP, Go, Java, Kotlin, C#, Ruby, Rust, Swift, Dart, PowerShell, HTTPie, Wget, raw HTTP, HAR, Postman, and normalized JSON
+
+## Beyond conversion
+
+- Paste a script of several cURL commands, or a HAR archive or Postman collection, and pick the request to convert from a list.
+- Turn credentials in a generated cURL command into shell variables, so the command can be pasted somewhere public without the token going with it.
+- Copy a share link that carries the request in the URL fragment, which browsers never send to a server.
 
 Conversion is static. The project never executes cURL or pasted code, never contacts represented URLs, and does not persist raw converter input.
 
@@ -21,7 +29,7 @@ Conversion is static. The project never executes cURL or pasted code, never cont
 
 ```text
 cURL → shell tokenizer → cURL parser → HttpRequest → generator registry → code
-code → Babel AST parser → HttpRequest → POSIX cURL generator
+code or request document → static source parser → HttpRequest → POSIX cURL generator
 ```
 
 - `packages/core`: typed HTTP request model, state-machine tokenizer, cURL parser, normalization, validation, and domain errors.
@@ -40,9 +48,9 @@ The core and generator packages do not depend on React, Astro, Tailwind, the DOM
 - Multipart is generated only through stable client APIs. ureq currently reports it as unsupported because the crate exposes multipart under an explicitly unversioned module.
 - Generated cURL currently targets POSIX shells. Null bytes and dynamic source expressions are rejected rather than approximated.
 
-### Reverse-parser tradeoff
+### Reverse-parser tradeoffs
 
-The reverse parser uses Babel's JavaScript/TypeScript parser for a mature ESTree-like AST without executing source. Its production browser chunk is independently lazy-loaded: the current measured build is about 95 KB gzip, while the initial converter code does not include it. Static literals, safe lexical `const` bindings, concatenation, template interpolation, Fetch, common Axios calls, `URLSearchParams`, generated `TextEncoder` bodies, and static `FormData` fields are supported. Imported runtime values, unknown mutations, custom serializers, and unresolved functions return structured limitations.
+JavaScript and TypeScript use Babel for a mature ESTree-like AST without executing source. Other programming languages use focused static tokenizers or syntax readers for the supported request shapes; command lines and interchange documents use format-specific parsers. The production reverse chunk is independently lazy-loaded, while the initial converter code does not include it. Imported runtime values, unknown mutations, custom serializers, shell substitutions, and unresolved functions return structured limitations rather than being executed or guessed.
 
 ## Development
 

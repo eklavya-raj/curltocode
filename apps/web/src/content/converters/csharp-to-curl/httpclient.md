@@ -21,6 +21,7 @@ faqs:
     answer: It is reported with the expression responsible. The parser never executes the code, so a value that only exists at run time becomes a named limitation rather than an invented one.
 related:
   - csharp-to-curl/restsharp
+  - csharp-to-curl/flurl
   - csharp-to-curl
   - curl-to-csharp/httpclient
   - java-to-curl/httpclient

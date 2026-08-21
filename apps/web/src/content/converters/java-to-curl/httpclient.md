@@ -22,6 +22,7 @@ faqs:
 related:
   - java-to-curl/okhttp
   - java-to-curl/apache
+  - java-to-curl/httpurlconnection
   - java-to-curl
   - curl-to-java/httpclient
 ---

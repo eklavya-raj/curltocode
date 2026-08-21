@@ -21,6 +21,7 @@ faqs:
 related:
   - csharp-to-curl/httpclient
   - csharp-to-curl/restsharp
+  - csharp-to-curl/flurl
   - curl-to-csharp
   - java-to-curl
 ---

@@ -22,6 +22,7 @@ related:
   - java-to-curl/httpclient
   - java-to-curl/okhttp
   - java-to-curl/apache
+  - java-to-curl/httpurlconnection
   - curl-to-java
 ---
 

@@ -1,10 +1,10 @@
 ---
 slug: curl-to-java
-title: cURL to Java – JDK, OkHttp & Apache HttpClient | CurlToCode
-description: Convert cURL to Java using JDK HttpClient, OkHttp, or Apache HttpClient 5, preserving bodies, headers, cookies, auth, redirects, and uploads.
+title: cURL to Java – 4 HTTP Clients | CurlToCode
+description: Convert cURL to Java using JDK HttpClient, OkHttp, Apache HttpClient 5, or HttpURLConnection, preserving supported bodies, headers, auth, and redirects.
 heading: Convert cURL to Java
 eyebrow: Java HTTP clients
-lede: Generate compilable Java for the JDK client, OkHttp, or Apache HttpClient 5, with each library's real capabilities and limitations made explicit.
+lede: Generate compilable Java for modern libraries or older HttpURLConnection baselines, with each client's real capabilities and limitations made explicit.
 language: java
 client: httpclient
 languageLabel: Java
@@ -12,12 +12,13 @@ clientLabel: HttpClient
 order: 30
 faqs:
   - question: Which Java HTTP client should I choose?
-    answer: JDK HttpClient needs no dependency, OkHttp offers an ergonomic modern API and interceptors, and Apache HttpClient 5 provides extensive classic-client configuration and mature multipart support. Prefer the client already standardized in your codebase.
+    answer: JDK HttpClient needs no dependency on Java 11+, OkHttp offers an ergonomic modern API, Apache HttpClient 5 provides deep configuration and multipart support, and HttpURLConnection covers older Java or Android baselines with a restricted method set.
   - question: Why does the multipart example fail for HttpClient?
     answer: Because java.net.http has no multipart BodyPublisher. Building the boundary and part headers by hand is error-prone, so rather than emit fragile code the converter reports the limitation and points you at the OkHttp output, which supports multipart natively.
   - question: Why does the generated code wrap everything in a Main class?
     answer: Both clients throw checked exceptions when a request is executed. The statements are placed inside a main method declared with throws Exception so the snippet compiles as written with javac rather than being a fragment you have to repair.
 related:
+  - curl-to-java/httpurlconnection
   - curl-to-java/apache-httpclient
   - curl-to-csharp
   - curl-to-go

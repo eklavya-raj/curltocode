@@ -4,24 +4,89 @@
 
 ## Main pages
 
-- [Converter](https://curltocode.com/): Convert cURL to supported languages and libraries, or statically parse supported source code back to cURL.
+- [Converter](https://curltocode.com/): Convert cURL to 71 generator targets across 37 language and format families, or statically parse supported source code back to cURL.
 - [All converters](https://curltocode.com/converters): Browse every supported forward generator and reverse parser.
 - [About CurlToCode](https://curltocode.com/about): Product architecture, privacy model, and project scope.
 
-## Primary cURL generators
+## cURL to code — scripting and web languages
 
-- [cURL to Python](https://curltocode.com/curl-to-python): Requests, HTTPX, and aiohttp.
-- [cURL to JavaScript](https://curltocode.com/curl-to-javascript): Fetch, Axios, and Undici.
+- [cURL to Python](https://curltocode.com/curl-to-python): Requests, HTTPX, aiohttp, http.client, and urllib3.
+- [cURL to JavaScript](https://curltocode.com/curl-to-javascript): Fetch, Axios, Undici, jQuery, and XMLHttpRequest.
 - [cURL to TypeScript](https://curltocode.com/curl-to-typescript): Typed Fetch, Axios, and Undici output.
+- [cURL to Node.js](https://curltocode.com/curl-to-nodejs): Fetch, Axios, Got, Ky, SuperAgent, and node:https, including file bodies from disk.
+- [cURL to PHP](https://curltocode.com/curl-to-php): cURL extension, Guzzle, Symfony HttpClient, and Laravel HTTP.
+- [cURL to Ruby](https://curltocode.com/curl-to-ruby): Net::HTTP, Faraday, HTTParty, and REST Client.
+- [cURL to Perl](https://curltocode.com/curl-to-perl): LWP::UserAgent.
+- [cURL to PowerShell](https://curltocode.com/curl-to-powershell): Invoke-RestMethod and Invoke-WebRequest.
+
+## cURL to code — compiled and JVM languages
+
 - [cURL to Go](https://curltocode.com/curl-to-go): net/http and Resty.
 - [cURL to Rust](https://curltocode.com/curl-to-rust): reqwest and ureq.
-- [cURL to Java](https://curltocode.com/curl-to-java): JDK HttpClient, OkHttp, and Apache HttpClient.
+- [cURL to Java](https://curltocode.com/curl-to-java): JDK HttpClient, OkHttp, Apache HttpClient 5, and HttpURLConnection.
+- [cURL to Kotlin](https://curltocode.com/curl-to-kotlin): OkHttp and Ktor.
+- [cURL to C#](https://curltocode.com/curl-to-csharp): HttpClient, RestSharp, and Flurl.
+- [cURL to Scala](https://curltocode.com/curl-to-scala): sttp.
+- [cURL to C](https://curltocode.com/curl-to-c): libcurl easy interface.
+- [cURL to C++](https://curltocode.com/curl-to-cpp): C++ Requests (cpr).
+- [cURL to Nim](https://curltocode.com/curl-to-nim): std/httpclient.
+- [cURL to Crystal](https://curltocode.com/curl-to-crystal): HTTP::Client.
 
-## Reverse parsers
+## cURL to code — mobile platforms
 
-- [JavaScript to cURL](https://curltocode.com/javascript-to-curl): Static Fetch and Axios parsing without code execution.
-- [TypeScript to cURL](https://curltocode.com/typescript-to-curl): Static Fetch and Axios parsing without code execution.
-- [Python to cURL](https://curltocode.com/python-to-curl): Static Requests, HTTPX, and aiohttp parsing without code execution.
+- [cURL to Swift](https://curltocode.com/curl-to-swift): URLSession and Alamofire.
+- [cURL to Objective-C](https://curltocode.com/curl-to-objectivec): NSURLSession.
+- [cURL to Dart](https://curltocode.com/curl-to-dart): package:http and Dio, for Flutter clients.
+
+## cURL to code — functional, data, and scientific languages
+
+- [cURL to Clojure](https://curltocode.com/curl-to-clojure): clj-http.
+- [cURL to Elixir](https://curltocode.com/curl-to-elixir): Req and HTTPoison.
+- [cURL to OCaml](https://curltocode.com/curl-to-ocaml): Cohttp with Lwt.
+- [cURL to R](https://curltocode.com/curl-to-r): httr2 and httr.
+- [cURL to Julia](https://curltocode.com/curl-to-julia): HTTP.jl.
+- [cURL to Lua](https://curltocode.com/curl-to-lua): lua-http.
+- [cURL to MATLAB](https://curltocode.com/curl-to-matlab): matlab.net.http.
+- [cURL to CFML](https://curltocode.com/curl-to-cfml): cfhttp for ColdFusion and Lucee.
+
+## cURL to CLIs, formats, and automation
+
+- [cURL to HTTPie](https://curltocode.com/curl-to-httpie): The HTTPie command line equivalent of a cURL command.
+- [cURL to Wget](https://curltocode.com/curl-to-wget): The Wget command line equivalent, with its multipart limitation stated.
+- [cURL to raw HTTP](https://curltocode.com/curl-to-http): The HTTP/1.1 request message the command would put on the wire.
+- [cURL to HAR](https://curltocode.com/curl-to-har): A HAR 1.2 log entry for tooling that consumes HAR.
+- [cURL to JSON](https://curltocode.com/curl-to-json): A lossless JSON description of the normalized request.
+- [cURL to Postman](https://curltocode.com/curl-to-postman): A Postman v2.1 collection containing the request.
+- [cURL to Ansible](https://curltocode.com/curl-to-ansible): An ansible.builtin.uri task.
+- [cURL to k6](https://curltocode.com/curl-to-k6): A k6 load test script.
+
+## Code to cURL — static reverse parsing
+
+Every reverse page reads source as an abstract syntax tree or a structured
+document rather than running it. A value that only exists at runtime is
+reported as an unresolved expression instead of being guessed at. 52 of the 71
+generator targets can be read back this way, across 20 languages and formats.
+
+- [JavaScript to cURL](https://curltocode.com/javascript-to-curl): Fetch, Axios, Undici, jQuery, and XMLHttpRequest.
+- [TypeScript to cURL](https://curltocode.com/typescript-to-curl): Fetch, Axios, and Undici.
+- [Node.js to cURL](https://curltocode.com/nodejs-to-curl): Fetch, Axios, Got, Ky, SuperAgent, and node:https.
+- [Python to cURL](https://curltocode.com/python-to-curl): Requests, HTTPX, aiohttp, http.client, and urllib3.
+- [PHP to cURL](https://curltocode.com/php-to-curl): cURL extension, Guzzle, Symfony HttpClient, and Laravel HTTP.
+- [Go to cURL](https://curltocode.com/go-to-curl): net/http and Resty.
+- [Java to cURL](https://curltocode.com/java-to-curl): JDK HttpClient, OkHttp, Apache HttpClient 5, and HttpURLConnection.
+- [Kotlin to cURL](https://curltocode.com/kotlin-to-curl): OkHttp and Ktor.
+- [C# to cURL](https://curltocode.com/csharp-to-curl): HttpClient, RestSharp, and Flurl.
+- [Ruby to cURL](https://curltocode.com/ruby-to-curl): Net::HTTP, Faraday, HTTParty, and rest-client.
+- [Rust to cURL](https://curltocode.com/rust-to-curl): reqwest and ureq.
+- [Swift to cURL](https://curltocode.com/swift-to-curl): URLSession and Alamofire.
+- [Dart to cURL](https://curltocode.com/dart-to-curl): package:http and Dio.
+- [HTTP to cURL](https://curltocode.com/http-to-curl): A raw HTTP/1.1 request message.
+- [HTTPie to cURL](https://curltocode.com/httpie-to-curl): An HTTPie command line.
+- [Wget to cURL](https://curltocode.com/wget-to-curl): A Wget command line.
+- [PowerShell to cURL](https://curltocode.com/powershell-to-curl): Invoke-RestMethod and Invoke-WebRequest.
+- [HAR to cURL](https://curltocode.com/har-to-curl): A HAR entry exported from browser DevTools.
+- [Postman to cURL](https://curltocode.com/postman-to-curl): A Postman collection request.
+- [JSON to cURL](https://curltocode.com/json-to-curl): A JSON request description.
 
 ## Policies
 
